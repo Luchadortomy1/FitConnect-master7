@@ -1,0 +1,457 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
+import { Header } from '@/components/Header';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
+import { WeeklyRoutine, WeekDay } from '@/types';
+import { routinesApi } from '@/api/routines';
+
+const CreateRoutineScreen = () => {
+  const { colors } = useTheme();
+  const navigation = useNavigation();
+  
+  const [routineName, setRoutineName] = useState('');
+  const [routineDescription, setRoutineDescription] = useState('');
+  const [selectedDays, setSelectedDays] = useState<Set<WeekDay>>(new Set());
+  const [isCreating, setIsCreating] = useState(false);
+
+  const weekDays: { key: WeekDay; label: string; short: string }[] = [
+    { key: 'monday', label: 'Lunes', short: 'L' },
+    { key: 'tuesday', label: 'Martes', short: 'M' },
+    { key: 'wednesday', label: 'Miércoles', short: 'X' },
+    { key: 'thursday', label: 'Jueves', short: 'J' },
+    { key: 'friday', label: 'Viernes', short: 'V' },
+    { key: 'saturday', label: 'Sábado', short: 'S' },
+    { key: 'sunday', label: 'Domingo', short: 'D' },
+  ];
+
+  const routineTemplates = [
+    {
+      id: 'push_pull_legs',
+      name: 'Push/Pull/Legs',
+      description: 'Rutina clásica de 6 días dividida por movimientos',
+      days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as WeekDay[],
+      workouts: {
+        monday: { name: 'Push Day - Pecho, Hombros y Tríceps', exercises: [] },
+        tuesday: { name: 'Pull Day - Espalda y Bíceps', exercises: [] },
+        wednesday: { name: 'Leg Day - Piernas Completo', exercises: [] },
+        thursday: { name: 'Push Day - Pecho, Hombros y Tríceps', exercises: [] },
+        friday: { name: 'Pull Day - Espalda y Bíceps', exercises: [] },
+        saturday: { name: 'Leg Day - Piernas y Glúteos', exercises: [] },
+      }
+    },
+    {
+      id: 'upper_lower',
+      name: 'Upper/Lower Split',
+      description: 'Rutina de 4 días alternando tren superior e inferior',
+      days: ['monday', 'tuesday', 'thursday', 'friday'] as WeekDay[],
+      workouts: {
+        monday: { name: 'Upper Body - Tren Superior', exercises: [] },
+        tuesday: { name: 'Lower Body - Tren Inferior', exercises: [] },
+        thursday: { name: 'Upper Body - Tren Superior', exercises: [] },
+        friday: { name: 'Lower Body - Tren Inferior', exercises: [] },
+      }
+    },
+    {
+      id: 'full_body',
+      name: 'Full Body',
+      description: 'Rutina de cuerpo completo 3 días por semana',
+      days: ['monday', 'wednesday', 'friday'] as WeekDay[],
+      workouts: {
+        monday: { name: 'Full Body A', exercises: [] },
+        wednesday: { name: 'Full Body B', exercises: [] },
+        friday: { name: 'Full Body C', exercises: [] },
+      }
+    },
+  ];
+
+  const toggleDaySelection = (day: WeekDay) => {
+    const newSelectedDays = new Set(selectedDays);
+    if (newSelectedDays.has(day)) {
+      newSelectedDays.delete(day);
+    } else {
+      newSelectedDays.add(day);
+    }
+    setSelectedDays(newSelectedDays);
+  };
+
+  const selectTemplate = (template: typeof routineTemplates[0]) => {
+    setRoutineName(template.name);
+    setRoutineDescription(template.description);
+    setSelectedDays(new Set(template.days));
+  };
+
+  const createRoutine = async () => {
+    if (!routineName.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un nombre para la rutina');
+      return;
+    }
+
+    if (selectedDays.size === 0) {
+      Alert.alert('Error', 'Selecciona al menos un día de entrenamiento');
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      const weeklyPlan: Partial<WeeklyRoutine['weeklyPlan']> = {};
+      
+      // Create basic day workouts for selected days
+      for (const day of selectedDays) {
+        const dayLabel = weekDays.find(d => d.key === day)?.label || day;
+        weeklyPlan[day] = {
+          id: `day-${Date.now()}-${day}`,
+          name: `Entrenamiento ${dayLabel}`,
+          exercises: [],
+          estimatedDuration: 60,
+        };
+      }
+
+      const newRoutine: Omit<WeeklyRoutine, 'id' | 'createdAt' | 'updatedAt'> = {
+        name: routineName.trim(),
+        description: routineDescription.trim() || undefined,
+        weeklyPlan: weeklyPlan as WeeklyRoutine['weeklyPlan'],
+        isActive: false,
+      };
+
+      await routinesApi.createRoutine(newRoutine);
+      
+      Alert.alert(
+        'Rutina creada',
+        '¡Tu rutina se ha creado exitosamente! Ahora puedes agregar ejercicios.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.goBack();
+              // Navigate to the workouts screen to see the new routine
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error creating routine:', error);
+      Alert.alert('Error', 'No se pudo crear la rutina. Inténtalo de nuevo.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header 
+        title="Crear Nueva Rutina"
+        rightAction={{
+          icon: (
+            <Text style={[
+              styles.createText,
+              { color: colors.primary },
+              isCreating && { color: colors.textSecondary }
+            ]}>
+              {isCreating ? 'Creando...' : 'Crear'}
+            </Text>
+          ),
+          onPress: () => { void createRoutine(); },
+          accessibilityLabel: "Crear rutina"
+        }}
+      />
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Basic Information */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Información Básica
+          </Text>
+          
+          <Card style={styles.formCard}>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Nombre de la Rutina *
+              </Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
+                value={routineName}
+                onChangeText={setRoutineName}
+                placeholder="Ej: Mi rutina de fuerza"
+                placeholderTextColor={colors.textSecondary}
+                maxLength={50}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Descripción (opcional)
+              </Text>
+              <TextInput
+                style={[styles.input, styles.textArea, { backgroundColor: colors.surface, color: colors.text }]}
+                value={routineDescription}
+                onChangeText={setRoutineDescription}
+                placeholder="Describe tu rutina, objetivos, etc..."
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                numberOfLines={3}
+                maxLength={200}
+              />
+            </View>
+          </Card>
+        </View>
+
+        {/* Templates */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Plantillas Predefinidas
+          </Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            Selecciona una plantilla o crea tu rutina personalizada
+          </Text>
+          
+          <View style={styles.templatesList}>
+            {routineTemplates.map(template => (
+              <Card key={template.id} style={styles.templateCard}>
+                <TouchableOpacity
+                  style={styles.templateContent}
+                  onPress={() => selectTemplate(template)}
+                >
+                  <View style={styles.templateInfo}>
+                    <Text style={[styles.templateName, { color: colors.text }]}>
+                      {template.name}
+                    </Text>
+                    <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>
+                      {template.description}
+                    </Text>
+                    <View style={styles.templateDays}>
+                      <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+                      <Text style={[styles.templateDaysText, { color: colors.textSecondary }]}>
+                        {template.days.length} días por semana
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </Card>
+            ))}
+          </View>
+        </View>
+
+        {/* Day Selection */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Días de Entrenamiento *
+          </Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            Selecciona los días que entrenarás
+          </Text>
+          
+          <Card style={styles.daysCard}>
+            <View style={styles.daysList}>
+              {weekDays.map(day => {
+                const isSelected = selectedDays.has(day.key);
+                return (
+                  <TouchableOpacity
+                    key={day.key}
+                    style={[
+                      styles.dayButton,
+                      { backgroundColor: colors.surface },
+                      isSelected && { backgroundColor: colors.primary }
+                    ]}
+                    onPress={() => toggleDaySelection(day.key)}
+                  >
+                    <Text style={[
+                      styles.dayShort,
+                      { color: isSelected ? 'white' : colors.text }
+                    ]}>
+                      {day.short}
+                    </Text>
+                    <Text style={[
+                      styles.dayLabel,
+                      { color: isSelected ? 'white' : colors.textSecondary }
+                    ]}>
+                      {day.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Card>
+        </View>
+
+        {/* Summary */}
+        {selectedDays.size > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Resumen
+            </Text>
+            
+            <Card style={styles.summaryCard}>
+              <View style={styles.summaryItem}>
+                <Ionicons name="fitness-outline" size={20} color={colors.primary} />
+                <Text style={[styles.summaryText, { color: colors.text }]}>
+                  {routineName || 'Nueva Rutina'}
+                </Text>
+              </View>
+              
+              <View style={styles.summaryItem}>
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={[styles.summaryText, { color: colors.text }]}>
+                  {selectedDays.size} días de entrenamiento
+                </Text>
+              </View>
+              
+              <View style={styles.summaryItem}>
+                <Ionicons name="time-outline" size={20} color={colors.primary} />
+                <Text style={[styles.summaryText, { color: colors.text }]}>
+                  Aproximadamente {selectedDays.size * 60} minutos por semana
+                </Text>
+              </View>
+            </Card>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Create Button */}
+      <View style={[styles.bottomContainer, { backgroundColor: colors.surface }]}>
+        <Button
+          title="Crear Rutina"
+          onPress={createRoutine}
+          disabled={!routineName.trim() || selectedDays.size === 0 || isCreating}
+        />
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  createText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  section: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  formCard: {
+    marginBottom: 8,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  templatesList: {
+    gap: 12,
+  },
+  templateCard: {
+    // Card styles already applied
+  },
+  templateContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  templateInfo: {
+    flex: 1,
+  },
+  templateName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  templateDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  templateDays: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  templateDaysText: {
+    fontSize: 12,
+  },
+  daysCard: {
+    marginBottom: 8,
+  },
+  daysList: {
+    gap: 12,
+  },
+  dayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  dayShort: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    width: 30,
+  },
+  dayLabel: {
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  summaryCard: {
+    gap: 12,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryText: {
+    fontSize: 16,
+  },
+  bottomContainer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  createButton: {
+    marginBottom: 0,
+  },
+});
+
+export default CreateRoutineScreen;
