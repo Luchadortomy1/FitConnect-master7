@@ -12,8 +12,8 @@
 
 // TODO: Reemplaza estas URLs con las tuyas de Supabase
 // CONFIGURADO - Credenciales de FitConnect
-export const SUPABASE_URL = 'https://asepjaidwuzkxdtczbqj.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzZXBqYWlkd3V6a3hkdGN6YnFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4NzkxMDUsImV4cCI6MjA4NDQ1NTEwNX0.CkU_mJV9j5fUbi7XJ6BVwRK_5WPs0fqKLRfgrNLHrVw';
+export const SUPABASE_URL = 'https://tpruptccnvsnyqrjbags.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcnVwdGNjbnZzbnlxcmpiYWdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0MjA5NjYsImV4cCI6MjA4Mzk5Njk2Nn0.qTy2ghzAFdB4LpIltmGG3-YqfpissQWZnDuR8NXdGAs';
 
 /*
 SQL PARA CREAR TABLAS (Ejecutar en SQL Editor de Supabase):
