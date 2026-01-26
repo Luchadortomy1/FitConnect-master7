@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { User } from '@/types';
-import { login as apiLogin, signup as apiSignup, logout as apiLogout, getCurrentUser, updateProfile, clearAllStoredTokens, supabase } from '@/api/auth';
+import { login as apiLogin, signup as apiSignup, logout as apiLogout, getCurrentUser, updateProfile, supabase } from '@/api/auth';
+import * as SecureStore from 'expo-secure-store';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
-  hasLoggedOut: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; needsConfirmation?: boolean }>;
   signup: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string; needsConfirmation?: boolean }>;
   logout: () => Promise<void>;
-  updateUser: (userData: Partial<User>) => void;
+  updateUser: (userData: Partial<User>) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,17 +22,11 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasLoggedOut, setHasLoggedOut] = useState(false);
 
   // Verificar sesión al inicializar
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Limpiar cualquier sesión almacenada al iniciar la app
-        await clearAllStoredTokens();
-        await apiLogout();
-        
-        // Solo verificar sesión activa después de limpiar
         const currentUser = await getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
@@ -69,12 +63,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const result = await apiLogin(email, password);
       
       if (result.success && result.user) {
         setUser(result.user);
-        setHasLoggedOut(false); // Resetear flag de logout
-        console.log('Login successful - user set:', result.user.email);
         return { success: true };
       }
       
@@ -82,6 +75,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('Login error:', error);
       return { success: false, error: error.message || 'Login failed' };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -119,9 +114,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       await apiLogout();
       setUser(null);
-      setHasLoggedOut(true); // Marcar que se hizo logout manual
       // Limpiar cualquier token almacenado
-      await clearAllStoredTokens();
+      await SecureStore.deleteItemAsync('supabase.auth.token');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -132,16 +126,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const updateUser = async (userData: Partial<User>) => {
     if (user) {
       try {
+        console.log('Updating user with data:', userData);
         // Actualizar en la base de datos
         const result = await updateProfile(user.id, userData);
         
-        if (result.success) {
+        if (result?.success) {
           // Actualizar estado local solo si la actualización en BD fue exitosa
           setUser({ ...user, ...userData });
           return { success: true };
         } else {
-          console.error('Error updating profile:', result.error);
-          return { success: false, error: result.error };
+          console.error('Error updating profile:', result?.error || 'Unknown error');
+          return { success: false, error: result?.error || 'Error al actualizar perfil' };
         }
       } catch (error: any) {
         console.error('Error updating user:', error);
@@ -154,13 +149,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = useMemo(() => ({
     user,
     isAuthenticated: !!user,
-    loading,
-    hasLoggedOut,
     login,
     signup,
     logout,
     updateUser,
-  }), [user, loading, hasLoggedOut]);
+  }), [user]);
 
   return (
     <AuthContext.Provider value={value}>

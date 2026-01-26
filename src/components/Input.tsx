@@ -30,10 +30,11 @@ export const Input: React.FC<InputProps> = ({
   };
 
   const labelStyle: TextStyle = {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter',
     color: colors.text,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   };
 
   const getBorderColor = () => {
@@ -45,25 +46,28 @@ export const Input: React.FC<InputProps> = ({
   const inputContainerStyle: ViewStyle = {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     backgroundColor: colors.surface,
     borderColor: getBorderColor(),
+    minHeight: 44,
   };
 
   const inputStyle: TextStyle = {
     flex: 1,
-    fontSize: 16,
-    paddingVertical: Spacing.md,
+    fontSize: 13,
+    fontFamily: 'Inter',
+    paddingVertical: 10,
     color: colors.text,
     marginLeft: leftIcon ? Spacing.sm : 0,
     marginRight: rightIcon ? Spacing.sm : 0,
   };
 
   const helperStyle: TextStyle = {
-    fontSize: 12,
-    marginTop: Spacing.sm,
+    fontSize: 11,
+    fontFamily: 'Inter',
+    marginTop: Spacing.xs,
     color: error ? colors.error : colors.textSecondary,
   };
 

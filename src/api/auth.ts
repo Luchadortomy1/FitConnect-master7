@@ -10,7 +10,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           // Intentar obtener chunks primero
           const chunksStr = await SecureStore.getItemAsync(`${key}_chunks`);
           if (chunksStr) {
-            const chunks = Number.parseInt(chunksStr);
+            const chunks = parseInt(chunksStr);
             let value = '';
             for (let i = 0; i < chunks; i++) {
               const chunk = await SecureStore.getItemAsync(`${key}_chunk_${i}`);
@@ -54,7 +54,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           // Remover chunks si existen
           const chunksStr = await SecureStore.getItemAsync(`${key}_chunks`);
           if (chunksStr) {
-            const chunks = Number.parseInt(chunksStr);
+            const chunks = parseInt(chunksStr);
             await SecureStore.deleteItemAsync(`${key}_chunks`);
             for (let i = 0; i < chunks; i++) {
               await SecureStore.deleteItemAsync(`${key}_chunk_${i}`);
@@ -66,8 +66,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         }
       },
     },
-    autoRefreshToken: false,
-    persistSession: false,
+    autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: false,
   },
 });
@@ -176,51 +176,14 @@ export const signup = async (email: string, password: string, name: string) => {
 
 export const logout = async () => {
   try {
-    // Cerrar sesión en Supabase
     const { error } = await supabase.auth.signOut();
     if (error) {
       throw error;
     }
-    
-    // Limpiar todos los tokens almacenados
-    await clearAllStoredTokens();
-    
     return { success: true };
   } catch (error: any) {
     console.error('Logout error:', error);
     return { success: false, error: error.message || 'Logout failed' };
-  }
-};
-
-// Función para limpiar todos los tokens almacenados
-export const clearAllStoredTokens = async () => {
-  try {
-    const keys = [
-      'supabase.auth.token',
-      'sb-figcxjmchiqzizxstezm-auth-token',
-      // Agregar más keys si es necesario
-    ];
-    
-    for (const key of keys) {
-      try {
-        // Limpiar chunks si existen
-        const chunksStr = await SecureStore.getItemAsync(`${key}_chunks`);
-        if (chunksStr) {
-          const chunks = Number.parseInt(chunksStr);
-          await SecureStore.deleteItemAsync(`${key}_chunks`);
-          for (let i = 0; i < chunks; i++) {
-            await SecureStore.deleteItemAsync(`${key}_chunk_${i}`);
-          }
-        }
-        
-        // Limpiar key normal
-        await SecureStore.deleteItemAsync(key);
-      } catch (error) {
-        console.warn(`Error clearing ${key}:`, error);
-      }
-    }
-  } catch (error) {
-    console.warn('Error clearing all stored tokens:', error);
   }
 };
 
@@ -274,16 +237,18 @@ export const updateProfile = async (userId: string, profileData: any) => {
     };
 
     // Mapear campos al formato de la base de datos
-    if (profileData.name) updateData.full_name = profileData.name;
-    if (profileData.age) updateData.age = profileData.age;
-    if (profileData.weight) updateData.weight = profileData.weight;
-    if (profileData.height) updateData.height = profileData.height;
-    if (profileData.goal) updateData.goal = profileData.goal;
-    if (profileData.activityLevel) updateData.activity_level = profileData.activityLevel;
-    if (profileData.targetCalories) updateData.target_calories = profileData.targetCalories;
-    if (profileData.targetProtein) updateData.target_protein = profileData.targetProtein;
-    if (profileData.targetCarbs) updateData.target_carbs = profileData.targetCarbs;
-    if (profileData.targetFat) updateData.target_fat = profileData.targetFat;
+    if (profileData.name !== undefined) updateData.full_name = profileData.name;
+    if (profileData.age !== undefined) updateData.age = profileData.age;
+    if (profileData.weight !== undefined) updateData.weight = profileData.weight;
+    if (profileData.height !== undefined) updateData.height = profileData.height;
+    if (profileData.goal !== undefined) updateData.goal = profileData.goal;
+    if (profileData.activityLevel !== undefined) updateData.activity_level = profileData.activityLevel;
+    if (profileData.targetCalories !== undefined) updateData.target_calories = profileData.targetCalories;
+    if (profileData.targetProtein !== undefined) updateData.target_protein = profileData.targetProtein;
+    if (profileData.targetCarbs !== undefined) updateData.target_carbs = profileData.targetCarbs;
+    if (profileData.targetFat !== undefined) updateData.target_fat = profileData.targetFat;
+
+    console.log('Updating profile with data:', updateData);
 
     const { error } = await supabase
       .from('profiles')
@@ -291,9 +256,11 @@ export const updateProfile = async (userId: string, profileData: any) => {
       .eq('id', userId);
 
     if (error) {
+      console.error('Supabase update error:', error);
       throw error;
     }
 
+    console.log('Profile updated successfully');
     return { success: true };
   } catch (error: any) {
     console.error('Update profile error:', error);

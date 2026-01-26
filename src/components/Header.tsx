@@ -40,14 +40,14 @@ export const Header: React.FC<HeaderProps> = ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    minHeight: 56,
+    minHeight: 60,
   };
 
   const titleContainerStyle: ViewStyle = {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   };
 
   const titleStyle: TextStyle = {

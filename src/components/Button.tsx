@@ -29,19 +29,19 @@ export const Button: React.FC<ButtonProps> = ({
   const getPadding = () => {
     switch (size) {
       case 'small':
-        return { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md };
+        return { paddingHorizontal: Spacing.lg };
       case 'large':
-        return { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl };
+        return { paddingHorizontal: Spacing.xl };
       default:
-        return { paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg };
+        return { paddingHorizontal: Spacing.lg };
     }
   };
 
   const getFontSize = () => {
     switch (size) {
-      case 'small': return 14;
-      case 'large': return 18;
-      default: return 16;
+      case 'small': return 13;
+      case 'large': return 15;
+      default: return 14;
     }
   };
 
@@ -50,9 +50,10 @@ export const Button: React.FC<ButtonProps> = ({
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: BorderRadius.md,
+      borderRadius: BorderRadius.button,
       opacity: disabled ? 0.5 : 1,
       width: fullWidth ? '100%' : 'auto',
+      minHeight: 46,
       ...getPadding(),
     };
 
@@ -97,8 +98,9 @@ export const Button: React.FC<ButtonProps> = ({
     return {
       fontSize: getFontSize(),
       fontWeight: Typography.button.fontWeight,
+      fontFamily: Typography.button.fontFamily,
       color,
-      marginLeft: loading ? Spacing.sm : 0,
+      marginLeft: loading ? Spacing.sm : icon ? Spacing.sm : 0,
     };
   };
 

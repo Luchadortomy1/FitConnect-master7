@@ -1,13 +1,11 @@
-import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Import screens (we'll create these next)
-import SplashScreen from '@/screens/SplashScreen';
-import OnboardingScreen from '@/screens/OnboardingScreen';
 import LoginScreen from '@/screens/auth/LoginScreen';
 import SignupScreen from '@/screens/auth/SignupScreen';
 import AuthLoadingScreen from '@/screens/auth/AuthLoadingScreen';
@@ -31,8 +29,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Navigation types
 export type RootStackParamList = {
-  Splash: undefined;
-  Onboarding: undefined;
   Auth: undefined;
   Main: undefined;
 };
@@ -251,7 +247,7 @@ const MainNavigator = () => {
   return (
     <MainTab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
 
           switch (route.name) {
@@ -274,7 +270,15 @@ const MainNavigator = () => {
               iconName = 'help-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName} size={22} color={color} />;
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontFamily: 'Inter',
+          marginBottom: 4,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
@@ -282,6 +286,10 @@ const MainNavigator = () => {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
+          height: 74,
+          paddingHorizontal: 12,
+          paddingTop: 8,
+          paddingBottom: 12,
         },
         headerShown: false,
       })}
@@ -332,12 +340,8 @@ const Navigation = () => {
           // Si el usuario hizo logout manual, ir directamente a Auth
           <RootStack.Screen name="Auth" component={AuthNavigator} />
         ) : (
-          // Flujo normal para nuevos usuarios
-          <>
-            <RootStack.Screen name="Splash" component={SplashScreen} />
-            <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
-            <RootStack.Screen name="Auth" component={AuthNavigator} />
-          </>
+          // Flujo para nuevos usuarios
+          <RootStack.Screen name="Auth" component={AuthNavigator} />
         )}
       </RootStack.Navigator>
     </NavigationContainer>

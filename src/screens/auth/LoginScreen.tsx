@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Button, Input, Card } from '@/components';
-import { Typography, Spacing } from '@/constants/theme';
+import { Button, Input } from '@/components';
+import { Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 const LoginScreen = () => {
   const navigation = useNavigation();
@@ -55,6 +56,10 @@ const LoginScreen = () => {
     }
   };
 
+  const handleForgotPassword = () => {
+    Alert.alert('Próximamente', 'La recuperación de contraseña estará disponible en esta versión.');
+  };
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -63,28 +68,34 @@ const LoginScreen = () => {
     scrollContainer: {
       flexGrow: 1,
       justifyContent: 'center',
-      padding: Spacing.lg,
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.xl,
     },
     logoContainer: {
       alignItems: 'center',
-      marginBottom: Spacing.xxl,
+      marginBottom: Spacing.xl,
     },
     logo: {
-      width: 80,
-      height: 80,
+      width: 88,
+      height: 88,
       backgroundColor: colors.primary,
-      borderRadius: 40,
+      borderRadius: BorderRadius.round,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: Spacing.md,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.15,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
     },
     logoText: {
-      fontSize: 24,
-      fontWeight: 'bold',
+      fontSize: 28,
+      fontWeight: '700',
       color: '#FFFFFF',
+      fontFamily: 'Inter',
     },
     title: {
-      ...Typography.h2,
+      ...Typography.h1,
       color: colors.text,
       textAlign: 'center',
       marginBottom: Spacing.sm,
@@ -93,10 +104,11 @@ const LoginScreen = () => {
       ...Typography.body1,
       color: colors.textSecondary,
       textAlign: 'center',
-      marginBottom: Spacing.xl,
+      marginBottom: Spacing.lg,
     },
     formContainer: {
-      marginBottom: Spacing.xl,
+      gap: Spacing.sm,
+      marginBottom: Spacing.lg,
     },
     linkContainer: {
       flexDirection: 'row',
@@ -108,6 +120,51 @@ const LoginScreen = () => {
       ...Typography.body2,
       color: colors.textSecondary,
     },
+    forgot: {
+      alignSelf: 'flex-end',
+      marginTop: -Spacing.sm,
+      marginBottom: Spacing.md,
+    },
+    forgotText: {
+      ...Typography.body2,
+      color: colors.primary,
+    },
+    socialContainer: {
+      marginTop: Spacing.lg,
+      gap: Spacing.sm,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      marginTop: Spacing.md,
+      marginBottom: Spacing.sm,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+    },
+    socialButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: BorderRadius.button,
+      paddingVertical: 10,
+      backgroundColor: colors.surface,
+    },
+    socialText: {
+      ...Typography.body1,
+      color: colors.text,
+    },
   });
 
   return (
@@ -118,47 +175,69 @@ const LoginScreen = () => {
       >
         <View style={styles.logoContainer}>
           <View style={styles.logo}>
-            <Text style={styles.logoText}>FC</Text>
+            <Ionicons name="barbell" size={36} color="#FFFFFF" />
           </View>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue your fitness journey</Text>
+          <Text style={styles.title}>FitConnect</Text>
+          <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
         </View>
-
-
 
         <View style={styles.formContainer}>
           <Input
-            label="Email"
+            label="Correo electrónico"
             value={email}
             onChangeText={setEmail}
-            placeholder="Enter your email"
+            placeholder="ejemplo@correo.com"
             keyboardType="email-address"
             autoCapitalize="none"
             error={errors.email}
+            leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Password"
+            label="Contraseña"
             value={password}
             onChangeText={setPassword}
-            placeholder="Enter your password"
+            placeholder="••••••••"
             secureTextEntry
             error={errors.password}
+            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
           />
 
+          <TouchableOpacity style={styles.forgot} onPress={handleForgotPassword}>
+            <Text style={styles.forgotText}>Olvidé mi contraseña</Text>
+          </TouchableOpacity>
+
           <Button
-            title="Sign In"
+            title="Iniciar sesión"
             onPress={handleLogin}
             loading={loading}
             fullWidth
           />
 
           <View style={styles.linkContainer}>
-            <Text style={styles.linkText}>Don't have an account? </Text>
+            <Text style={styles.linkText}>¿Aún no tienes cuenta? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Signup' as never)}>
-              <Text style={[styles.linkText, { color: colors.primary }]}>Sign Up</Text>
+              <Text style={[styles.linkText, { color: colors.primary }]}>Crear cuenta</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.socialContainer}>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o continúa con</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity style={styles.socialButton}>
+            <Ionicons name="logo-google" size={18} color={colors.text} />
+            <Text style={styles.socialText}>Continuar con Google</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.socialButton}>
+            <Ionicons name="logo-facebook" size={18} color={colors.text} />
+            <Text style={styles.socialText}>Continuar con Facebook</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

@@ -112,7 +112,7 @@ const HomeScreen = () => {
       );
 
       // Return top 3 highest rated
-      const sortedSupplements = filtered.toSorted((a, b) => b.rating - a.rating);
+      const sortedSupplements = [...filtered].sort((a, b) => b.rating - a.rating);
       return sortedSupplements.slice(0, 3);
     } catch (error) {
       console.error('Error getting recommended supplements:', error);

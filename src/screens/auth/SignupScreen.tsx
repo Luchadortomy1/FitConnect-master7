@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button, Input } from '@/components';
-import { Typography, Spacing } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 const SignupScreen = () => {
   const navigation = useNavigation();
@@ -61,6 +62,10 @@ const SignupScreen = () => {
     try {
       const result = await signup(formData.email, formData.password, formData.name);
       if (result.success) {
+        if (result.profileError) {
+          Alert.alert('Perfil', 'No pudimos guardar tu perfil. Intenta de nuevo.');
+        }
+
         if (result.needsConfirmation) {
           Alert.alert(
             'Confirmación requerida',
@@ -99,28 +104,34 @@ const SignupScreen = () => {
     scrollContainer: {
       flexGrow: 1,
       justifyContent: 'center',
-      padding: Spacing.lg,
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.xl,
     },
     logoContainer: {
       alignItems: 'center',
-      marginBottom: Spacing.xxl,
+      marginBottom: Spacing.xl,
     },
     logo: {
-      width: 80,
-      height: 80,
+      width: 88,
+      height: 88,
       backgroundColor: colors.primary,
-      borderRadius: 40,
+      borderRadius: BorderRadius.round,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: Spacing.md,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.15,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
     },
     logoText: {
-      fontSize: 24,
-      fontWeight: 'bold',
+      fontSize: 28,
+      fontWeight: '700',
+      fontFamily: 'Inter',
       color: '#FFFFFF',
     },
     title: {
-      ...Typography.h2,
+      ...Typography.h1,
       color: colors.text,
       textAlign: 'center',
       marginBottom: Spacing.sm,
@@ -129,10 +140,11 @@ const SignupScreen = () => {
       ...Typography.body1,
       color: colors.textSecondary,
       textAlign: 'center',
-      marginBottom: Spacing.xl,
+      marginBottom: Spacing.lg,
     },
     formContainer: {
-      marginBottom: Spacing.xl,
+      gap: Spacing.sm,
+      marginBottom: Spacing.lg,
     },
     linkContainer: {
       flexDirection: 'row',
@@ -154,60 +166,64 @@ const SignupScreen = () => {
       >
         <View style={styles.logoContainer}>
           <View style={styles.logo}>
-            <Text style={styles.logoText}>FC</Text>
+            <Ionicons name="barbell" size={36} color="#FFFFFF" />
           </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join FitConnect and start your fitness journey</Text>
+          <Text style={styles.title}>Crea tu cuenta</Text>
+          <Text style={styles.subtitle}>Únete a FitConnect y lleva tu progreso</Text>
         </View>
 
         <View style={styles.formContainer}>
           <Input
-            label="Full Name"
+            label="Nombre completo"
             value={formData.name}
             onChangeText={updateFormData('name')}
-            placeholder="Enter your full name"
+            placeholder="Tu nombre"
             error={errors.name}
+            leftIcon={<Ionicons name="person-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Email"
+            label="Correo electrónico"
             value={formData.email}
             onChangeText={updateFormData('email')}
-            placeholder="Enter your email"
+            placeholder="ejemplo@correo.com"
             keyboardType="email-address"
             autoCapitalize="none"
             error={errors.email}
+            leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Password"
+            label="Contraseña"
             value={formData.password}
             onChangeText={updateFormData('password')}
-            placeholder="Enter your password"
+            placeholder="••••••••"
             secureTextEntry
             error={errors.password}
+            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Confirm Password"
+            label="Confirmar contraseña"
             value={formData.confirmPassword}
             onChangeText={updateFormData('confirmPassword')}
-            placeholder="Confirm your password"
+            placeholder="Repite tu contraseña"
             secureTextEntry
             error={errors.confirmPassword}
+            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Button
-            title="Create Account"
+            title="Crear cuenta"
             onPress={handleSignup}
             loading={loading}
             fullWidth
           />
 
           <View style={styles.linkContainer}>
-            <Text style={styles.linkText}>Already have an account? </Text>
+            <Text style={styles.linkText}>¿Ya tienes cuenta? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login' as never)}>
-              <Text style={[styles.linkText, { color: colors.primary }]}>Sign In</Text>
+              <Text style={[styles.linkText, { color: colors.primary }]}>Inicia sesión</Text>
             </TouchableOpacity>
           </View>
         </View>
