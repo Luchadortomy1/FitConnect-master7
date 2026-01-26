@@ -140,19 +140,26 @@ export const signup = async (email: string, password: string, name: string) => {
     }
 
     if (data.user) {
-      // Crear perfil del usuario
-      const { error: profileError } = await supabase
+      // Crear o actualizar perfil del usuario (upsert)
+      const { data: insertedProfile, error: profileError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: data.user.id,
           full_name: name,
           email: email,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
+        })
+        .select()
+        .single();
 
       if (profileError) {
         console.error('Error creating profile:', profileError);
+        return {
+          success: false,
+          error: `Error al crear perfil: ${profileError.message}`,
+          profileError: true,
+        };
       }
 
       return {
@@ -160,7 +167,7 @@ export const signup = async (email: string, password: string, name: string) => {
         user: {
           id: data.user.id,
           email: data.user.email,
-          name: name,
+          name: insertedProfile?.full_name || name,
         },
         session: data.session,
         needsConfirmation: !data.session, // Si no hay sesión, necesita confirmación por email
@@ -189,6 +196,12 @@ export const logout = async () => {
 
 export const getCurrentUser = async () => {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return null;
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {

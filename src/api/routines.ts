@@ -14,6 +14,15 @@ type RoutineRow = {
 
 const WEEK_ORDER: WeekDay[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+const getCurrentUserId = async (): Promise<string | null> => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) {
+    console.error('Error getting session:', error);
+    return null;
+  }
+  return session.user.id;
+};
+
 const mapExercises = (exercises: any[] = [], routineId: string, dayKey: string): DayExercise[] => {
   return exercises.map((ex, idx) => ({
     id: ex.id || `${routineId}-${dayKey}-ex-${idx}`,
@@ -54,7 +63,17 @@ const mapRoutineRow = (row: RoutineRow, fallbackActive: boolean): WeeklyRoutine 
 };
 
 const fetchRoutines = async (): Promise<WeeklyRoutine[]> => {
-  const { data, error } = await supabase.from('routines').select('*');
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    console.warn('No user ID available for fetching routines');
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('routines')
+    .select('*')
+    .eq('user_id', userId);
+  
   if (error) {
     console.error('Supabase routines error:', error);
     throw error;
@@ -118,6 +137,54 @@ export const routinesApi = {
     if (error) {
       throw error;
     }
+  },
+
+  async createRoutine(routine: Omit<WeeklyRoutine, 'id' | 'createdAt' | 'updatedAt'>): Promise<WeeklyRoutine> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error('No user authenticated');
+    }
+
+    // Convertir el formato de la app al formato de la tabla routines
+    const routineData = {
+      user_id: userId,
+      name: routine.name,
+      description: routine.description || null,
+      goal: null,
+      level: null,
+      content: {
+        days: Object.entries(routine.weeklyPlan).map(([dayKey, dayWorkout]) => ({
+          id: dayWorkout.id,
+          day: dayKey,
+          name: dayWorkout.name,
+          duration: dayWorkout.estimatedDuration,
+          exercises: dayWorkout.exercises.map(ex => ({
+            id: ex.id,
+            name: ex.name,
+            muscle: ex.muscle,
+            sets: ex.sets,
+            reps: ex.reps,
+            weight: ex.weight,
+            notes: ex.notes,
+            equipment: ex.equipment,
+          })),
+          notes: dayWorkout.notes,
+        })),
+      },
+    };
+
+    const { data, error } = await supabase
+      .from('routines')
+      .insert(routineData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating routine:', error);
+      throw error;
+    }
+
+    return mapRoutineRow(data as RoutineRow, false);
   },
 };
 

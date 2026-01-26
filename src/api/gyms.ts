@@ -9,6 +9,7 @@ const GYM_SELECT = [
   'description',
   'address',
   'phone',
+  'image',
   'is_active',
   'created_at',
   'location',
@@ -29,7 +30,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 const toGym = (row: any, userLocation?: { latitude: number; longitude: number }): Gym => {
-  const { id, name, address, phone, description } = row;
+  const { id, name, address, phone, description, image } = row;
 
   const coords = (() => {
     const location = row.location;
@@ -60,7 +61,7 @@ const toGym = (row: any, userLocation?: { latitude: number; longitude: number })
     priceRange: '$$',
     amenities: [],
     openHours: {},
-    images: [PLACEHOLDER_IMAGE],
+    image: image || PLACEHOLDER_IMAGE,
     distance,
   };
 };

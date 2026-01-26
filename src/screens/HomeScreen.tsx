@@ -10,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
@@ -130,6 +131,13 @@ const HomeScreen = () => {
   useEffect(() => {
     loadDashboardData();
   }, [user]);
+
+  // Recargar datos cuando la pantalla se enfoca (después de crear rutina)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadDashboardData();
+    }, [user])
+  );
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
@@ -291,7 +299,7 @@ const HomeScreen = () => {
                 </Text>
                 <TouchableOpacity
                   style={[styles.createRoutineButton, { backgroundColor: colors.primary }]}
-                  onPress={() => navigation.navigate('CreateRoutine' as never)}
+                  onPress={() => navigation.navigate('Workouts' as never, { screen: 'CreateRoutine' } as never)}
                 >
                   <Text style={styles.createRoutineText}>Crear Rutina</Text>
                 </TouchableOpacity>

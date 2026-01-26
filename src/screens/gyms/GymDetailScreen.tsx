@@ -145,7 +145,7 @@ const GymDetailScreen = () => {
               setCurrentImageIndex(index);
             }}
           >
-            {gym.images.map((image, index) => (
+            {(gym.image ? [gym.image] : gym.images || []).map((image, index) => (
               <Image
                 key={`${gym.id}-image-${index}`}
                 source={{ uri: image }}
@@ -156,9 +156,9 @@ const GymDetailScreen = () => {
           </ScrollView>
           
           {/* Image Indicators */}
-          {gym.images.length > 1 && (
+          {((gym.image ? [gym.image] : gym.images || []).length > 1) && (
             <View style={styles.imageIndicators}>
-              {gym.images.map((image, index) => (
+              {(gym.image ? [gym.image] : gym.images || []).map((image, index) => (
                 <View
                   key={`${gym.id}-indicator-${image.slice(-10)}-${index}`}
                   style={[
@@ -192,7 +192,7 @@ const GymDetailScreen = () => {
                 {renderStars(gym.rating)}
               </View>
               <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                {gym.rating.toFixed(1)} rating
+                {gym.rating ? gym.rating.toFixed(1) : 'N/A'} rating
               </Text>
             </View>
             

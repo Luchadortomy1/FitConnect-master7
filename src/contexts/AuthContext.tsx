@@ -3,7 +3,7 @@ import { User } from '@/types';
 import { login as apiLogin, signup as apiSignup, logout as apiLogout, getCurrentUser, updateProfile, supabase } from '@/api/auth';
 import * as SecureStore from 'expo-secure-store';
 
-const AUTH_DISABLED = true; // Toggle to re-enable Supabase auth when ready
+const AUTH_DISABLED = false; // Toggle to re-enable Supabase auth when ready
 
 const GUEST_USER: User = {
   id: 'guest',

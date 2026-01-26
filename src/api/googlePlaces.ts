@@ -265,33 +265,41 @@ export const googlePlacesApi = {
    */
   async getCurrentLocation(): Promise<{ latitude: number; longitude: number } | null> {
     return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        console.error('Geolocation is not supported by this browser');
-        resolve(null);
-        return;
-      }
+      // Default location (Los Angeles) as fallback
+      const defaultLocation = {
+        latitude: 34.0522,
+        longitude: -118.2437,
+      };
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          // Return default location (Los Angeles) if geolocation fails
-          resolve({
-            latitude: 34.0522,
-            longitude: -118.2437,
-          });
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000, // 5 minutes
+      try {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+          console.warn('Geolocation not available - using default location');
+          resolve(defaultLocation);
+          return;
         }
-      );
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+          },
+          (error) => {
+            console.warn('Error getting location, using default:', error.message);
+            // Return default location if geolocation fails
+            resolve(defaultLocation);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000, // 5 minutes
+          }
+        );
+      } catch (error) {
+        console.warn('Geolocation error:', error);
+        resolve(defaultLocation);
+      }
     });
   },
 

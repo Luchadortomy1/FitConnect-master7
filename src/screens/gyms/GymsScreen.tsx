@@ -96,7 +96,7 @@ const GymsScreen = () => {
   };
 
   const renderGymItem = ({ item: gym }: { item: Gym }) => {
-    const imageUri = gym.images?.[0] || FALLBACK_IMAGE;
+    const imageUri = gym.image || FALLBACK_IMAGE;
     const priceRange = gym.priceRange || '$$';
 
     return (

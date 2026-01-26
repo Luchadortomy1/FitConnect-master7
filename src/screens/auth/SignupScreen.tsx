@@ -78,8 +78,8 @@ const SignupScreen = () => {
             ]
           );
         } else {
-          // Navigate to main app after successful signup
-          navigation.navigate('Main' as never);
+          // El usuario está autenticado, la navegación automática cambiará a Main
+          // No necesitas navegar manualmente - el cambio en isAuthenticated lo hará
         }
       } else {
         Alert.alert('Error', result.error || 'Failed to create account. Please try again.');

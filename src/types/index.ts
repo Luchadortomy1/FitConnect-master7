@@ -100,7 +100,8 @@ export interface Gym {
   openHours: {
     [key: string]: string;
   };
-  images: string[];
+  image?: string;
+  images?: string[];
   distance?: number;
 }
 
