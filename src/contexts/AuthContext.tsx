@@ -3,6 +3,19 @@ import { User } from '@/types';
 import { login as apiLogin, signup as apiSignup, logout as apiLogout, getCurrentUser, updateProfile, supabase } from '@/api/auth';
 import * as SecureStore from 'expo-secure-store';
 
+const AUTH_DISABLED = true; // Toggle to re-enable Supabase auth when ready
+
+const GUEST_USER: User = {
+  id: 'guest',
+  email: 'guest@example.com',
+  name: 'Invitado',
+  age: 25,
+  weight: 70,
+  height: 175,
+  goal: 'maintain',
+  activityLevel: 'moderate',
+};
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -21,10 +34,15 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!AUTH_DISABLED);
 
-  // Verificar sesión al inicializar
+  // Skip Supabase auth wiring while auth is disabled
   useEffect(() => {
+    if (AUTH_DISABLED) {
+      setLoading(false);
+      return;
+    }
+
     const initializeAuth = async () => {
       try {
         const currentUser = await getCurrentUser();
@@ -40,7 +58,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
 
-    // Escuchar cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
@@ -62,6 +79,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
+    if (AUTH_DISABLED) {
+      setLoading(true);
+      setUser({
+        ...GUEST_USER,
+        email: email || GUEST_USER.email,
+        name: email ? email.split('@')[0] || GUEST_USER.name : GUEST_USER.name,
+      });
+      setLoading(false);
+      return { success: true };
+    }
+
     try {
       setLoading(true);
       const result = await apiLogin(email, password);
@@ -81,6 +109,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signup = async (email: string, password: string, name: string) => {
+    if (AUTH_DISABLED) {
+      setLoading(true);
+      setUser({
+        ...GUEST_USER,
+        email: email || GUEST_USER.email,
+        name: name || email?.split('@')[0] || GUEST_USER.name,
+      });
+      setLoading(false);
+      return { success: true };
+    }
+
     try {
       setLoading(true);
       const result = await apiSignup(email, password, name);
@@ -110,6 +149,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    if (AUTH_DISABLED) {
+      setUser(null);
+      return;
+    }
+
     try {
       setLoading(true);
       await apiLogout();
@@ -124,6 +168,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateUser = async (userData: Partial<User>) => {
+    if (AUTH_DISABLED) {
+      setUser(prev => prev ? { ...prev, ...userData } : { ...GUEST_USER, ...userData });
+      return { success: true };
+    }
+
     if (user) {
       try {
         console.log('Updating user with data:', userData);
@@ -149,11 +198,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = useMemo(() => ({
     user,
     isAuthenticated: !!user,
+    loading,
     login,
     signup,
     logout,
     updateUser,
-  }), [user]);
+  }), [user, loading]);
 
   return (
     <AuthContext.Provider value={value}>

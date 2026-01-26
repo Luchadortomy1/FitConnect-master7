@@ -31,6 +31,7 @@ import { Ionicons } from '@expo/vector-icons';
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
+  ProfileStack: undefined;
 };
 
 export type AuthStackParamList = {
@@ -43,7 +44,6 @@ export type MainTabParamList = {
   Workouts: undefined;
   Store: undefined;
   Gyms: undefined;
-  Profile: undefined;
 };
 
 export type WorkoutStackParamList = {
@@ -263,9 +263,6 @@ const MainNavigator = () => {
             case 'Gyms':
               iconName = focused ? 'location' : 'location-outline';
               break;
-            case 'Profile':
-              iconName = focused ? 'person' : 'person-outline';
-              break;
             default:
               iconName = 'help-outline';
           }
@@ -298,7 +295,6 @@ const MainNavigator = () => {
       <MainTab.Screen name="Workouts" component={WorkoutNavigator} />
       <MainTab.Screen name="Store" component={StoreNavigator} />
       <MainTab.Screen name="Gyms" component={GymNavigator} />
-      <MainTab.Screen name="Profile" component={ProfileNavigator} />
     </MainTab.Navigator>
   );
 };
@@ -335,12 +331,11 @@ const Navigation = () => {
         }}
       >
         {isAuthenticated ? (
-          <RootStack.Screen name="Main" component={MainNavigator} />
-        ) : hasLoggedOut ? (
-          // Si el usuario hizo logout manual, ir directamente a Auth
-          <RootStack.Screen name="Auth" component={AuthNavigator} />
+          <>
+            <RootStack.Screen name="Main" component={MainNavigator} />
+            <RootStack.Screen name="ProfileStack" component={ProfileNavigator} />
+          </>
         ) : (
-          // Flujo para nuevos usuarios
           <RootStack.Screen name="Auth" component={AuthNavigator} />
         )}
       </RootStack.Navigator>

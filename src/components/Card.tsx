@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { BorderRadius, Spacing, Shadows } from '@/constants/theme';
+import { BorderRadius, Spacing, Shadows, Typography } from '@/constants/theme';
 
 interface CardProps {
   children: React.ReactNode;
@@ -49,14 +49,13 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
   const { colors } = useTheme();
 
   const titleStyle: TextStyle = {
-    fontSize: 18,
-    fontWeight: '600',
+    ...Typography.h2,
     color: colors.text,
-    marginBottom: subtitle ? 4 : 0,
+    marginBottom: subtitle ? Spacing.xs : 0,
   };
 
   const subtitleStyle: TextStyle = {
-    fontSize: 14,
+    ...Typography.h4,
     color: colors.textSecondary,
   };
 

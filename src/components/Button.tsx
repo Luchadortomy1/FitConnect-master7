@@ -29,11 +29,11 @@ export const Button: React.FC<ButtonProps> = ({
   const getPadding = () => {
     switch (size) {
       case 'small':
-        return { paddingHorizontal: Spacing.lg };
+        return { paddingHorizontal: 10, paddingVertical: 10 };
       case 'large':
-        return { paddingHorizontal: Spacing.xl };
+        return { paddingHorizontal: 12, paddingVertical: 10 };
       default:
-        return { paddingHorizontal: Spacing.lg };
+        return { paddingHorizontal: 10, paddingVertical: 10 };
     }
   };
 

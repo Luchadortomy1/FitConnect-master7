@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
+import { Spacing } from '@/constants/theme';
 import { DayWorkout, Supplement } from '@/types';
 import { routinesApi } from '@/api/routines';
 import { storeApi } from '@/api/store';
@@ -180,7 +181,7 @@ const HomeScreen = () => {
         <Header title="Dashboard" />
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Cargando dashboard...
+            Cargando...
           </Text>
         </View>
       </View>
@@ -190,32 +191,20 @@ const HomeScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header 
-        title="Dashboard"
-        rightAction={{
-          icon: <Ionicons name="notifications-outline" size={24} color={colors.text} />,
-          onPress: () => navigation.navigate('Notifications' as never),
-          accessibilityLabel: "Notificaciones"
-        }}
+        title=""
+        rightActions={[
+          {
+            icon: <Ionicons name="notifications-outline" size={24} color={colors.text} />,
+            onPress: () => navigation.navigate('Notifications' as never),
+            accessibilityLabel: "Notificaciones",
+          },
+          {
+            icon: <Ionicons name="person-circle-outline" size={24} color={colors.text} />,
+            onPress: () => navigation.navigate('ProfileStack' as never),
+            accessibilityLabel: "Perfil",
+          },
+        ]}
       />
-
-      {/* Botón temporal de logout para debugging */}
-      <TouchableOpacity 
-        style={{
-          margin: 16,
-          padding: 12,
-          backgroundColor: colors.error,
-          borderRadius: 8,
-          alignItems: 'center'
-        }}
-        onPress={async () => {
-          console.log('Logging out...');
-          await logout();
-        }}
-      >
-        <Text style={{ color: 'white', fontWeight: 'bold' }}>
-          LOGOUT (Temporal - para testing)
-        </Text>
-      </TouchableOpacity>
 
       <ScrollView 
         style={styles.scrollView}
@@ -463,6 +452,7 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: Spacing.xxl,
   },
   loadingContainer: {
     flex: 1,

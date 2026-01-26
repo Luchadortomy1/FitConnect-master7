@@ -16,6 +16,11 @@ interface HeaderProps {
     onPress: () => void;
     accessibilityLabel?: string;
   };
+  rightActions?: Array<{
+    icon: React.ReactNode;
+    onPress: () => void;
+    accessibilityLabel?: string;
+  }>;
   backgroundColor?: string;
   showBorder?: boolean;
 }
@@ -25,6 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   leftAction,
   rightAction,
+  rightActions,
   backgroundColor,
   showBorder = true,
 }) => {
@@ -51,13 +57,13 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const titleStyle: TextStyle = {
-    ...Typography.h3,
+    ...Typography.h2,
     color: colors.text,
     textAlign: 'center',
   };
 
   const subtitleStyle: TextStyle = {
-    ...Typography.body2,
+    ...Typography.h4,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 2,
@@ -68,6 +74,13 @@ export const Header: React.FC<HeaderProps> = ({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  };
+
+  const rightStackStyle: ViewStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
   };
 
   return (
@@ -93,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
         </View>
 
         <View style={actionStyle}>
-          {rightAction && (
+          {rightAction && !rightActions && (
             <TouchableOpacity
               onPress={rightAction.onPress}
               style={styles.actionButton}
@@ -105,6 +118,23 @@ export const Header: React.FC<HeaderProps> = ({
             </TouchableOpacity>
           )}
         </View>
+
+        {rightActions && (
+          <View style={rightStackStyle}>
+            {rightActions.map((action, index) => (
+              <TouchableOpacity
+                key={index}
+                onPress={action.onPress}
+                style={styles.actionButton}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={action.accessibilityLabel || 'Action'}
+              >
+                {action.icon}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
