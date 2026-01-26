@@ -88,12 +88,13 @@ export interface CartItem {
 export interface Gym {
   id: string;
   name: string;
+  description?: string;
   address: string;
   latitude: number;
   longitude: number;
   phone: string;
   website?: string;
-  rating: number;
+  rating?: number;
   priceRange: '$' | '$$' | '$$$';
   amenities: string[];
   openHours: {

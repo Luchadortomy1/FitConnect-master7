@@ -1,107 +1,18 @@
 import { Gym } from '@/types';
 import { googlePlacesApi } from './googlePlaces';
+import { supabase } from './auth';
 
-// Mock gym data
-const mockGyms: Gym[] = [
-  {
-    id: '1',
-    name: 'Iron Gym',
-    address: '123 Main St, Los Angeles, CA 90210',
-    latitude: 34.0522,
-    longitude: -118.2437,
-    phone: '+1 (555) 123-4567',
-    website: 'https://irongym.com',
-    rating: 4.8,
-    priceRange: '$$',
-    amenities: ['Free Weights', 'Cardio Equipment', 'Group Classes', 'Personal Training', 'Locker Rooms', 'Parking'],
-    openHours: {
-      Monday: '5:00 AM - 11:00 PM',
-      Tuesday: '5:00 AM - 11:00 PM',
-      Wednesday: '5:00 AM - 11:00 PM',
-      Thursday: '5:00 AM - 11:00 PM',
-      Friday: '5:00 AM - 10:00 PM',
-      Saturday: '6:00 AM - 9:00 PM',
-      Sunday: '7:00 AM - 8:00 PM',
-    },
-    images: [
-      'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop',
-    ],
-  },
-  {
-    id: '2',
-    name: 'Fitness World',
-    address: '456 Oak Ave, New York, NY 10001',
-    latitude: 40.7128,
-    longitude: -74.006,
-    phone: '+1 (555) 987-6543',
-    website: 'https://fitnessworld.com',
-    rating: 4.5,
-    priceRange: '$$$',
-    amenities: ['Free Weights', 'Cardio Equipment', 'Pool', 'Sauna', 'Group Classes', 'Personal Training', 'Cafe'],
-    openHours: {
-      Monday: '24 Hours',
-      Tuesday: '24 Hours',
-      Wednesday: '24 Hours',
-      Thursday: '24 Hours',
-      Friday: '24 Hours',
-      Saturday: '24 Hours',
-      Sunday: '24 Hours',
-    },
-    images: [
-      'https://images.unsplash.com/photo-1593079831268-3381b0db4a77?w=400&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop',
-    ],
-  },
-  {
-    id: '3',
-    name: 'Powerhouse Gym',
-    address: '789 Elm St, Chicago, IL 60601',
-    latitude: 41.8781,
-    longitude: -87.6298,
-    phone: '+1 (555) 456-7890',
-    rating: 4.6,
-    priceRange: '$$',
-    amenities: ['Free Weights', 'Powerlifting Area', 'Cardio Equipment', 'Group Classes', 'Personal Training'],
-    openHours: {
-      Monday: '5:00 AM - 10:00 PM',
-      Tuesday: '5:00 AM - 10:00 PM',
-      Wednesday: '5:00 AM - 10:00 PM',
-      Thursday: '5:00 AM - 10:00 PM',
-      Friday: '5:00 AM - 9:00 PM',
-      Saturday: '6:00 AM - 8:00 PM',
-      Sunday: '7:00 AM - 7:00 PM',
-    },
-    images: [
-      'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=400&h=300&fit=crop',
-    ],
-  },
-  {
-    id: '4',
-    name: 'Elite Fitness',
-    address: '321 Pine St, Miami, FL 33101',
-    latitude: 25.7617,
-    longitude: -80.1918,
-    phone: '+1 (555) 321-0987',
-    website: 'https://elitefitness.com',
-    rating: 4.9,
-    priceRange: '$$$',
-    amenities: ['Free Weights', 'Cardio Equipment', 'Pool', 'Spa', 'Group Classes', 'Personal Training', 'Nutrition Counseling'],
-    openHours: {
-      Monday: '5:00 AM - 11:00 PM',
-      Tuesday: '5:00 AM - 11:00 PM',
-      Wednesday: '5:00 AM - 11:00 PM',
-      Thursday: '5:00 AM - 11:00 PM',
-      Friday: '5:00 AM - 10:00 PM',
-      Saturday: '6:00 AM - 9:00 PM',
-      Sunday: '7:00 AM - 8:00 PM',
-    },
-    images: [
-      'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=300&fit=crop',
-    ],
-  },
-];
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1554344058-8d1d1bc5f2f4?w=400&h=300&fit=crop';
+const GYM_SELECT = [
+  'id',
+  'name',
+  'description',
+  'address',
+  'phone',
+  'is_active',
+  'created_at',
+  'location',
+].join(',');
 
 // Utility function to calculate distance between two coordinates
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -117,93 +28,135 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(distance * 100) / 100; // Round to 2 decimal places
 }
 
+const toGym = (row: any, userLocation?: { latitude: number; longitude: number }): Gym => {
+  const { id, name, address, phone, description } = row;
+
+  const coords = (() => {
+    const location = row.location;
+    if (!location) return null;
+    if (location.coordinates && Array.isArray(location.coordinates) && location.coordinates.length >= 2) {
+      const [lon, lat] = location.coordinates;
+      return { latitude: lat, longitude: lon };
+    }
+    if (typeof location.latitude === 'number' && typeof location.longitude === 'number') {
+      return { latitude: location.latitude, longitude: location.longitude };
+    }
+    return null;
+  })();
+
+  const distance = coords && userLocation
+    ? calculateDistance(userLocation.latitude, userLocation.longitude, coords.latitude, coords.longitude)
+    : undefined;
+
+  return {
+    id,
+    name,
+    description,
+    address: address || 'Dirección no disponible',
+    latitude: coords?.latitude ?? 0,
+    longitude: coords?.longitude ?? 0,
+    phone: phone || '',
+    website: undefined,
+    priceRange: '$$',
+    amenities: [],
+    openHours: {},
+    images: [PLACEHOLDER_IMAGE],
+    distance,
+  };
+};
+
 // Gyms API service
 export const gymsApi = {
   async getAllGyms(): Promise<Gym[]> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return mockGyms;
+    const { data, error } = await supabase
+      .from('gyms')
+      .select(GYM_SELECT)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching gyms:', error);
+      throw error;
+    }
+
+    return (data || []).map(row => toGym(row));
   },
 
   async getGym(id: string): Promise<Gym | null> {
-    try {
-      // Try to get real gym details from Google Places API
-      const realGym = await googlePlacesApi.getGymDetails(id);
-      if (realGym) {
-        return realGym;
-      }
-    } catch (error) {
-      console.error('Error fetching real gym details:', error);
+    const { data, error } = await supabase
+      .from('gyms')
+      .select(GYM_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching gym:', error);
+      return null;
     }
 
-    // Fallback to mock data
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockGyms.find(gym => gym.id === id) || null;
+    return data ? toGym(data) : null;
   },
 
   async getNearbyGyms(latitude: number, longitude: number, radiusKm: number = 50): Promise<Gym[]> {
-    try {
-      // Try to get real gyms from Google Places API first
-      const radiusMeters = radiusKm * 1000; // Convert km to meters
-      const realGyms = await googlePlacesApi.getNearbyGyms(latitude, longitude, radiusMeters);
-      
-      if (realGyms.length > 0) {
-        // Add distance calculation to real gyms
-        const gymsWithDistance = realGyms.map(gym => ({
-          ...gym,
-          distance: calculateDistance(latitude, longitude, gym.latitude, gym.longitude),
-        }));
-        return gymsWithDistance.sort((a, b) => a.distance - b.distance);
-      }
-    } catch (error) {
-      console.error('Error fetching real gyms:', error);
+    const { data, error } = await supabase
+      .from('gyms')
+      .select(GYM_SELECT);
+
+    if (error) {
+      console.error('Error fetching nearby gyms:', error);
+      throw error;
     }
 
-    // Fallback to mock data if API fails
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const gymsWithDistance = mockGyms.map(gym => ({
-      ...gym,
-      distance: calculateDistance(latitude, longitude, gym.latitude, gym.longitude),
-    }));
+    const gyms = (data || [])
+      .map(row => toGym(row, { latitude, longitude }))
+      .filter(gym => gym.latitude && gym.longitude);
 
-    return gymsWithDistance
-      .filter(gym => gym.distance <= radiusKm)
-      .sort((a, b) => a.distance - b.distance);
+    const withinRadius = gyms.filter(gym => (gym.distance ?? Infinity) <= radiusKm);
+    return withinRadius.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
   },
 
   async searchGyms(query: string, location?: { latitude: number; longitude: number }): Promise<Gym[]> {
-    try {
-      // Try to search real gyms using Google Places API
-      const realGyms = await googlePlacesApi.searchGyms(query, location);
-      if (realGyms.length > 0) {
-        return realGyms;
-      }
-    } catch (error) {
-      console.error('Error searching real gyms:', error);
+    const q = query.trim();
+    const { data, error } = await supabase
+      .from('gyms')
+      .select(GYM_SELECT)
+      .or(`name.ilike.%${q}%,address.ilike.%${q}%`);
+
+    if (error) {
+      console.error('Error searching gyms:', error);
+      throw error;
     }
 
-    // Fallback to mock data search
-    await new Promise(resolve => setTimeout(resolve, 700));
-    
-    const lowercaseQuery = query.toLowerCase();
-    return mockGyms.filter(gym =>
-      gym.name.toLowerCase().includes(lowercaseQuery) ||
-      gym.address.toLowerCase().includes(lowercaseQuery) ||
-      gym.amenities.some(amenity => amenity.toLowerCase().includes(lowercaseQuery))
-    );
+    return (data || []).map(row => toGym(row, location));
   },
 
   async getGymsByPriceRange(priceRange: '$' | '$$' | '$$$'): Promise<Gym[]> {
-    await new Promise(resolve => setTimeout(resolve, 600));
-    return mockGyms.filter(gym => gym.priceRange === priceRange);
+    const { data, error } = await supabase
+      .from('gyms')
+      .select(GYM_SELECT);
+
+    if (error) {
+      console.error('Error fetching gyms by price range:', error);
+      throw error;
+    }
+
+    return (data || [])
+      .map(row => toGym(row))
+      .filter(gym => gym.priceRange === priceRange);
   },
 
   async getFeaturedGyms(): Promise<Gym[]> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // Return highest rated gyms as featured
-    return mockGyms
-      .filter(gym => gym.rating >= 4.7)
-      .slice(0, 3);
+    const { data, error } = await supabase
+      .from('gyms')
+      .select(GYM_SELECT)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (error) {
+      console.error('Error fetching featured gyms:', error);
+      throw error;
+    }
+
+    return (data || []).map(row => toGym(row));
   },
 
   // Get user's current location using Google Places API

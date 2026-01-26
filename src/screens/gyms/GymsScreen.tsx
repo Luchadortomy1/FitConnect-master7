@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { gymsApi } from '@/api';
 import { Gym } from '@/types';
+
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1554344058-8d1d1bc5f2f4?w=400&h=300&fit=crop';
 
 
 const GymsScreen = () => {
@@ -27,7 +30,6 @@ const GymsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   useEffect(() => {
@@ -37,20 +39,10 @@ const GymsScreen = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      
-      // Get user's location first
-      const location = await gymsApi.getCurrentLocation();
-      setUserLocation(location);
-      
-      if (location) {
-        // Get nearby gyms
-        const nearbyGyms = await gymsApi.getNearbyGyms(location.latitude, location.longitude, 10);
-        setGyms(nearbyGyms);
-      } else {
-        // Fallback to all gyms if location is not available
-        const allGyms = await gymsApi.getAllGyms();
-        setGyms(allGyms);
-      }
+
+      // Load all gyms without geolocation
+      const allGyms = await gymsApi.getAllGyms();
+      setGyms(allGyms);
     } catch (error) {
       console.error('Error loading gyms:', error);
       Alert.alert('Error', 'Failed to load gyms. Please try again.');
@@ -73,7 +65,7 @@ const GymsScreen = () => {
 
     try {
       setLoading(true);
-      const searchResults = await gymsApi.searchGyms(searchQuery, userLocation || undefined);
+        const searchResults = await gymsApi.searchGyms(searchQuery);
       setGyms(searchResults);
     } catch (error) {
       console.error('Error searching gyms:', error);
@@ -87,49 +79,31 @@ const GymsScreen = () => {
     navigation.navigate('GymDetail' as never, { gym } as never);
   };
 
-  const handleDirections = (gym: Gym) => {
-    const directionsUrl = gymsApi.getDirectionsUrl(gym, userLocation || undefined);
-    Linking.openURL(directionsUrl);
-  };
-
   const handleCall = (gym: Gym) => {
     if (gym.phone) {
       Linking.openURL(`tel:${gym.phone}`);
     }
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons key={i} name="star" size={14} color="#FFD700" />
-      );
+  const handleDirections = (gym: Gym) => {
+    const query = encodeURIComponent(gym.address || gym.name);
+    const appleMapsUrl = `http://maps.apple.com/?q=${query}`;
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+    const url = Platform.select({ ios: appleMapsUrl, android: googleMapsUrl, default: googleMapsUrl });
+    if (url) {
+      Linking.openURL(url);
     }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons key="half" name="star-half" size={14} color="#FFD700" />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Ionicons key={`empty-${i}`} name="star-outline" size={14} color="#FFD700" />
-      );
-    }
-
-    return stars;
   };
 
-  const renderGymItem = ({ item: gym }: { item: Gym }) => (
+  const renderGymItem = ({ item: gym }: { item: Gym }) => {
+    const imageUri = gym.images?.[0] || FALLBACK_IMAGE;
+    const priceRange = gym.priceRange || '$$';
+
+    return (
     <View style={[styles.gymCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <TouchableOpacity onPress={() => handleGymPress(gym)}>
         <Image 
-          source={{ uri: gym.images[0] }} 
+          source={{ uri: imageUri }} 
           style={styles.gymImage}
           resizeMode="cover"
         />
@@ -140,27 +114,19 @@ const GymsScreen = () => {
               {gym.name}
             </Text>
             <Text style={[styles.priceRange, { color: colors.primary }]}>
-              {gym.priceRange}
+              {priceRange}
             </Text>
           </View>
           
           <Text style={[styles.gymAddress, { color: colors.textSecondary }]} numberOfLines={2}>
             {gym.address}
           </Text>
-          
-          <View style={styles.ratingRow}>
-            <View style={styles.starsContainer}>
-              {renderStars(gym.rating)}
-            </View>
-            <Text style={[styles.rating, { color: colors.textSecondary }]}>
-              {gym.rating.toFixed(1)}
+
+          {!!gym.description && (
+            <Text style={[styles.gymDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+              {gym.description}
             </Text>
-            {gym.distance && (
-              <Text style={[styles.distance, { color: colors.primary }]}>
-                • {gym.distance.toFixed(1)}km away
-              </Text>
-            )}
-          </View>
+          )}
           
           <View style={styles.amenitiesContainer}>
             {gym.amenities.slice(0, 3).map((amenity, index) => (
@@ -185,7 +151,7 @@ const GymsScreen = () => {
               <Ionicons name="navigate" size={16} color="white" />
               <Text style={styles.actionButtonText}>Directions</Text>
             </TouchableOpacity>
-            
+
             {!!gym.phone && (
               <TouchableOpacity 
                 style={[styles.actionButton, styles.callButton, { borderColor: colors.primary }]}
@@ -199,7 +165,8 @@ const GymsScreen = () => {
         </View>
       </TouchableOpacity>
     </View>
-  );
+    );
+  };
 
   if (loading && gyms.length === 0) {
     return (
@@ -263,14 +230,6 @@ const GymsScreen = () => {
       </View>
 
       {/* Location Info */}
-      {userLocation && (
-        <View style={[styles.locationInfo, { backgroundColor: colors.primary + '20' }]}>
-          <Ionicons name="location" size={16} color={colors.primary} />
-          <Text style={[styles.locationText, { color: colors.primary }]}>
-            Showing gyms near your location
-          </Text>
-        </View>
-      )}
 
       {/* Gyms List */}
       <FlatList
@@ -414,6 +373,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
     lineHeight: 20,
+  },
+  gymDescription: {
+    fontSize: 13,
+    marginBottom: 8,
+    lineHeight: 18,
   },
   ratingRow: {
     flexDirection: 'row',
