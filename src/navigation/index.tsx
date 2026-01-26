@@ -132,6 +132,11 @@ const WorkoutNavigator = () => {
         options={{ title: 'Create Routine' }}
       />
       <WorkoutStack.Screen 
+        name="EditRoutine" 
+        component={CreateRoutineScreen}
+        options={{ title: 'Edit Routine' }}
+      />
+      <WorkoutStack.Screen 
         name="AddExercise" 
         component={AddExerciseScreen}
         options={{ title: 'Add Exercise' }}

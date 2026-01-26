@@ -45,15 +45,8 @@ const HomeScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Mock gym subscription data
-  const mockGymSubscription: GymSubscription = {
-    id: '1',
-    gymName: 'FitZone Premium',
-    planType: 'Plan Completo',
-    startDate: '2024-10-01',
-    endDate: '2025-01-01',
-    price: 450,
-    status: 'active',
-  };
+  // TODO: En el futuro, cargar suscripción actual del usuario desde la BD
+  // Por ahora, si el usuario no está suscrito a ningún gym, será null
 
   const loadDashboardData = async () => {
     try {
@@ -64,7 +57,8 @@ const HomeScreen = () => {
       
       setTodayWorkout(workout);
       setRecommendedSupplements(supplements);
-      setGymSubscription(mockGymSubscription);
+      // Mostrar null si el usuario no tiene suscripción activa
+      setGymSubscription(null);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -136,7 +130,7 @@ const HomeScreen = () => {
   useFocusEffect(
     React.useCallback(() => {
       loadDashboardData();
-    }, [user])
+    }, [])
   );
 
   const getGreeting = (): string => {

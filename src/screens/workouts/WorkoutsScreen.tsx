@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { Header } from '@/components/Header';
@@ -62,6 +63,13 @@ const WorkoutsScreen = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Recargar datos cuando la pantalla se enfoca (después de crear rutina)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+    }, [])
+  );
 
   const getCurrentDay = (): WeekDay => {
     const today = new Date().getDay();
