@@ -9,12 +9,15 @@ import {
   Linking,
   ActivityIndicator,
   Dimensions,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { gymsApi } from '@/api';
+import { gymsApi, userSubscriptionsApi } from '@/api';
+import { StripePaymentSheet } from '@/components/StripePaymentSheet';
 import { Gym } from '@/types';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -29,10 +32,15 @@ const GymDetailScreen = () => {
   const [loading, setLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
 
   useEffect(() => {
     loadGymDetails();
     loadUserLocation();
+    loadSubscriptionPlans();
   }, []);
 
   const loadGymDetails = async () => {
@@ -46,6 +54,17 @@ const GymDetailScreen = () => {
       console.error('Error loading gym details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSubscriptionPlans = async () => {
+    try {
+      // Obtener planes de suscripción del gimnasio
+      const plans = await gymsApi.getGymSubscriptionPlans(initialGym.id);
+      console.log('Plans loaded for gym', initialGym.id, ':', plans);
+      setSubscriptionPlans(plans || []);
+    } catch (error) {
+      console.error('Error loading subscription plans:', error);
     }
   };
 
@@ -68,6 +87,68 @@ const GymDetailScreen = () => {
   const handleWebsite = () => {
     if (gym.website) {
       Linking.openURL(gym.website);
+    }
+  };
+
+  const handleSubscribe = async () => {
+    if (subscriptionPlans.length === 0) {
+      Alert.alert('Sin planes', 'Este gimnasio no tiene planes disponibles');
+      return;
+    }
+
+    // Si solo hay un plan, mostrar formulario de pago
+    if (subscriptionPlans.length === 1) {
+      setSelectedPlan(subscriptionPlans[0]);
+      setShowPaymentModal(true);
+    } else {
+      // Si hay varios planes, mostrar opciones
+      Alert.alert(
+        'Selecciona un plan',
+        'Por favor, selecciona el plan que deseas:',
+        subscriptionPlans.map(plan => ({
+          text: `${plan.name} - $${plan.price}/mes`,
+          onPress: () => {
+            setSelectedPlan(plan);
+            setShowPaymentModal(true);
+          },
+        })).concat([{ text: 'Cancelar', onPress: () => {} }])
+      );
+    }
+  };
+
+  const subscribeToGym = async (planId: string, paymentIntentId?: string) => {
+    try {
+      setIsSubscribing(true);
+      const result = await userSubscriptionsApi.subscribeToGym(planId, paymentIntentId);
+      
+      if (result) {
+        Alert.alert('Éxito', '¡Te has suscrito al gimnasio correctamente!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', 'No se pudo completar la suscripción');
+      }
+    } catch (error) {
+      console.error('Error subscribing:', error);
+      Alert.alert('Error', 'Ocurrió un error al intentar suscribirse');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
+    try {
+      // Aquí se llama a la función para completar la suscripción después del pago
+      if (selectedPlan) {
+        await subscribeToGym(selectedPlan.id, paymentIntentId);
+        setShowPaymentModal(false);
+      }
+    } catch (error) {
+      console.error('Error completing subscription:', error);
+      Alert.alert('Error', 'Error al completar la suscripción');
     }
   };
 
@@ -233,6 +314,19 @@ const GymDetailScreen = () => {
               <Ionicons name="navigate" size={20} color="white" />
               <Text style={styles.primaryButtonText}>Directions</Text>
             </TouchableOpacity>
+
+            {subscriptionPlans.length > 0 && (
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: colors.success, marginTop: 10 }]}
+                onPress={handleSubscribe}
+                disabled={isSubscribing}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="white" />
+                <Text style={styles.primaryButtonText}>
+                  {isSubscribing ? 'Suscribiendo...' : 'Subscribe'}
+                </Text>
+              </TouchableOpacity>
+            )}
             
             <View style={styles.secondaryButtons}>
               {!!gym.phone && (
@@ -335,6 +429,37 @@ const GymDetailScreen = () => {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
+
+      {/* Payment Modal */}
+      <Modal
+        visible={showPaymentModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Completar Suscripción</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {selectedPlan && (
+              <StripePaymentSheet
+                planName={selectedPlan.name}
+                amount={selectedPlan.price}
+                planId={selectedPlan.id}
+                onSuccess={handlePaymentSuccess}
+                onCancel={() => setShowPaymentModal(false)}
+                colors={colors}
+              />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -544,6 +669,26 @@ const styles = StyleSheet.create({
   contactText: {
     flex: 1,
     fontSize: 16,
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
   },
 });
 

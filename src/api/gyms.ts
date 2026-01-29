@@ -165,6 +165,27 @@ export const gymsApi = {
     return await googlePlacesApi.getCurrentLocation();
   },
 
+  // Get subscription plans for a gym
+  async getGymSubscriptionPlans(gymId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .eq('gym_id', gymId);
+
+      if (error) {
+        console.error('Error fetching subscription plans:', error);
+        return [];
+      }
+
+      console.log(`Found ${data?.length || 0} plans for gym ${gymId}:`, data);
+      return data || [];
+    } catch (error) {
+      console.error('Error getting subscription plans:', error);
+      return [];
+    }
+  },
+
   // Generate Google Maps directions URL
   getDirectionsUrl(destinationGym: Gym, userLocation?: { latitude: number; longitude: number }): string {
     return googlePlacesApi.getDirectionsUrl(destinationGym, userLocation);

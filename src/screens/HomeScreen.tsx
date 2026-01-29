@@ -18,8 +18,7 @@ import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Spacing } from '@/constants/theme';
 import { DayWorkout, Supplement } from '@/types';
-import { routinesApi } from '@/api/routines';
-import { storeApi } from '@/api/store';
+import { routinesApi, storeApi, userSubscriptionsApi } from '@/api';
 
 const { width } = Dimensions.get('window');
 
@@ -50,15 +49,33 @@ const HomeScreen = () => {
 
   const loadDashboardData = async () => {
     try {
+      // Primero cargar suscripción
+      const subscription = await userSubscriptionsApi.getUserActiveSubscription();
+      
+      // Cargar otros datos
       const [workout, supplements] = await Promise.all([
         routinesApi.getTodayWorkout(),
-        getRecommendedSupplements(),
+        subscription?.gym_id ? getRecommendedSupplements(subscription.gym_id) : Promise.resolve([]),
       ]);
       
       setTodayWorkout(workout);
-      setRecommendedSupplements(supplements);
-      // Mostrar null si el usuario no tiene suscripción activa
-      setGymSubscription(null);
+      // Solo mostrar suplementos si hay suscripción
+      setRecommendedSupplements(subscription ? supplements : []);
+      
+      // Mapear suscripción a GymSubscription
+      if (subscription) {
+        setGymSubscription({
+          id: subscription.id,
+          gymName: subscription.gym_name || 'Gimnasio',
+          planType: subscription.plan_name || 'Plan',
+          startDate: subscription.start_date,
+          endDate: subscription.end_date,
+          price: subscription.plan_price || 0,
+          status: 'active',
+        });
+      } else {
+        setGymSubscription(null);
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -66,9 +83,14 @@ const HomeScreen = () => {
     }
   };
 
-  const getRecommendedSupplements = async (): Promise<Supplement[]> => {
+  const getRecommendedSupplements = async (gymId: string): Promise<Supplement[]> => {
     try {
-      const allSupplements = await storeApi.getSupplements();
+      // Solo obtener suplementos del gym al que está suscrito
+      const allSupplements = await storeApi.getSupplementsByGym(gymId);
+      
+      if (allSupplements.length === 0) {
+        return [];
+      }
       
       // Recommend based on BMI and workout type
       let recommendedCategories: string[] = [];
@@ -303,62 +325,64 @@ const HomeScreen = () => {
         </View>
 
         {/* Recommended Supplements */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Suplementos Recomendados
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Store' as never)}>
-              <Text style={[styles.seeAllText, { color: colors.primary }]}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {recommendedSupplements.length > 0 ? (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={styles.supplementsScroll}
-            >
-              {recommendedSupplements.map((supplement) => (
-                <Card key={supplement.id} style={styles.supplementCard}>
-                  <TouchableOpacity
-                    style={styles.supplementContent}
-                    onPress={() => navigation.navigate('ProductDetail' as never, { 
-                      productId: supplement.id 
-                    } as never)}
-                  >
-                    <Image 
-                      source={{ uri: supplement.image }} 
-                      style={styles.supplementImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.supplementInfo}>
-                      <Text style={[styles.supplementName, { color: colors.text }]} numberOfLines={2}>
-                        {supplement.name}
-                      </Text>
-                      <View style={styles.supplementRating}>
-                        <Ionicons name="star" size={12} color="#FFD700" />
-                        <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                          {supplement.rating.toFixed(1)}
+        {gymSubscription && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Suplementos Recomendados
+              </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Store' as never)}>
+                <Text style={[styles.seeAllText, { color: colors.primary }]}>Ver todos</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {recommendedSupplements.length > 0 ? (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.supplementsScroll}
+              >
+                {recommendedSupplements.map((supplement) => (
+                  <Card key={supplement.id} style={styles.supplementCard}>
+                    <TouchableOpacity
+                      style={styles.supplementContent}
+                      onPress={() => navigation.navigate('ProductDetail' as never, { 
+                        productId: supplement.id 
+                      } as never)}
+                    >
+                      <Image 
+                        source={{ uri: supplement.image }} 
+                        style={styles.supplementImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.supplementInfo}>
+                        <Text style={[styles.supplementName, { color: colors.text }]} numberOfLines={2}>
+                          {supplement.name}
+                        </Text>
+                        <View style={styles.supplementRating}>
+                          <Ionicons name="star" size={12} color="#FFD700" />
+                          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
+                            {supplement.rating.toFixed(1)}
+                          </Text>
+                        </View>
+                        <Text style={[styles.supplementPrice, { color: colors.primary }]}>
+                          ${supplement.price}
                         </Text>
                       </View>
-                      <Text style={[styles.supplementPrice, { color: colors.primary }]}>
-                        ${supplement.price}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </Card>
-              ))}
-            </ScrollView>
-          ) : (
-            <Card style={styles.emptySupplementsCard}>
-              <Ionicons name="flask-outline" size={48} color={colors.textSecondary} />
-              <Text style={[styles.emptySupplementsText, { color: colors.textSecondary }]}>
-                No hay recomendaciones disponibles
-              </Text>
-            </Card>
-          )}
-        </View>
+                    </TouchableOpacity>
+                  </Card>
+                ))}
+              </ScrollView>
+            ) : (
+              <Card style={styles.emptySupplementsCard}>
+                <Ionicons name="flask-outline" size={48} color={colors.textSecondary} />
+                <Text style={[styles.emptySupplementsText, { color: colors.textSecondary }]}>
+                  No hay recomendaciones disponibles
+                </Text>
+              </Card>
+            )}
+          </View>
+        )}
 
         {/* Gym Subscription */}
         <View style={styles.section}>

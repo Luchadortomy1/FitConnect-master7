@@ -12,11 +12,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
-import { storeApi } from '@/api';
+import { storeApi, userSubscriptionsApi } from '@/api';
 import { Supplement } from '@/types';
 
 
@@ -31,6 +31,7 @@ const StoreScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [hasSubscription, setHasSubscription] = useState<boolean>(true);
 
   const categories = [
     { key: 'all', label: 'Todos', icon: 'grid-outline' },
@@ -46,6 +47,13 @@ const StoreScreen = () => {
     loadSupplements();
   }, []);
 
+  // Recargar cuando la pantalla recibe foco (si cambia de gym)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadSupplements();
+    }, [])
+  );
+
   useEffect(() => {
     filterSupplements();
   }, [supplements, searchQuery, selectedCategory]);
@@ -53,8 +61,19 @@ const StoreScreen = () => {
   const loadSupplements = async () => {
     try {
       setLoading(true);
-      const data = await storeApi.getSupplements();
-      setSupplements(data);
+      // Obtener suscripción del usuario
+      const subscription = await userSubscriptionsApi.getUserActiveSubscription();
+      
+      if (subscription?.gym_id) {
+        // Cargar solo productos del gimnasio al que está suscrito
+        const data = await storeApi.getSupplementsByGym(subscription.gym_id);
+        setSupplements(data);
+        setHasSubscription(true);
+      } else {
+        // Si no está suscrito, no mostrar nada
+        setSupplements([]);
+        setHasSubscription(false);
+      }
     } catch (error) {
       console.error('Error loading supplements:', error);
       Alert.alert('Error', 'No se pudieron cargar los suplementos');
@@ -254,6 +273,35 @@ const StoreScreen = () => {
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Cargando suplementos...
           </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!hasSubscription) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Tienda de Suplementos
+          </Text>
+        </View>
+        
+        <View style={styles.noSubscriptionContainer}>
+          <Ionicons name="business-outline" size={64} color={colors.textSecondary} />
+          <Text style={[styles.noSubscriptionTitle, { color: colors.text }]}>
+            Sin suscripción
+          </Text>
+          <Text style={[styles.noSubscriptionText, { color: colors.textSecondary }]}>
+            Debes suscribirte a un gimnasio para acceder a la tienda de suplementos
+          </Text>
+          <TouchableOpacity
+            style={[styles.subscribeButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('Gyms' as never)}
+          >
+            <Ionicons name="fitness-outline" size={20} color="white" />
+            <Text style={styles.subscribeButtonText}>Ir a Gimnasios</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -557,6 +605,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  noSubscriptionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  noSubscriptionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  noSubscriptionText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  subscribeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    gap: 8,
+  },
+  subscribeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

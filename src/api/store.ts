@@ -1,4 +1,5 @@
 import { Supplement, Purchase } from '@/types';
+import { supabase } from './auth';
 
 // Mock supplement data
 const mockSupplements: Supplement[] = [
@@ -84,9 +85,77 @@ const mockSupplements: Supplement[] = [
 
 // Store API service
 export const storeApi = {
+  /**
+   * Obtener suplementos del gimnasio al que está suscrito el usuario
+   */
+  async getSupplementsByGym(gymId: string): Promise<Supplement[]> {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('gym_id', gymId)
+        .eq('is_active', true);
+
+      if (error) {
+        console.warn('Error fetching gym supplements, using mock data:', error);
+        return mockSupplements;
+      }
+
+      if (!data || data.length === 0) {
+        return mockSupplements; // Fallback a datos mock si no hay productos
+      }
+
+      return data.map(product => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
+        category: (product.category || 'other') as any,
+        rating: 4.5, // TODO: obtener de la BD si está disponible
+        reviews: 0,
+        ingredients: [],
+        servingSize: '',
+        servingsPerContainer: 0,
+      }));
+    } catch (error) {
+      console.error('Error getting gym supplements:', error);
+      return mockSupplements;
+    }
+  },
+
   async getSupplements(): Promise<Supplement[]> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return mockSupplements;
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*');
+
+      if (error) {
+        console.warn('Error fetching supplements, using mock data:', error);
+        return mockSupplements;
+      }
+
+      if (!data || data.length === 0) {
+        return mockSupplements;
+      }
+
+      return data.map(product => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
+        category: (product.category || 'other') as any,
+        rating: 4.5,
+        reviews: 0,
+        ingredients: [],
+        servingSize: '',
+        servingsPerContainer: 0,
+      }));
+    } catch (error) {
+      console.error('Error getting supplements:', error);
+      return mockSupplements;
+    }
   },
 
   async getSupplement(id: string): Promise<Supplement | null> {

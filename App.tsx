@@ -3,10 +3,12 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppProvider } from '@/contexts/AppContext';
 import Navigation from '@/navigation';
+import { STRIPE_PUBLISHABLE_KEY } from '@/config/stripe';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -25,13 +27,15 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppProvider>
-          <StatusBar style="dark" />
-          <Navigation />
-        </AppProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppProvider>
+            <StatusBar style="dark" />
+            <Navigation />
+          </AppProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </StripeProvider>
   );
 }
