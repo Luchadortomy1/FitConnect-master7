@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { gymsApi } from '@/api';
+import { gymsApi, userSubscriptionsApi } from '@/api';
 import { Gym } from '@/types';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1554344058-8d1d1bc5f2f4?w=400&h=300&fit=crop';
@@ -31,6 +31,7 @@ const GymsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [activeSubscription, setActiveSubscription] = useState<any>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -43,6 +44,10 @@ const GymsScreen = () => {
       // Load all gyms without geolocation
       const allGyms = await gymsApi.getAllGyms();
       setGyms(allGyms);
+      
+      // Load active subscription
+      const subscription = await userSubscriptionsApi.getUserActiveSubscription();
+      setActiveSubscription(subscription);
     } catch (error) {
       console.error('Error loading gyms:', error);
       Alert.alert('Error', 'Failed to load gyms. Please try again.');
@@ -92,6 +97,44 @@ const GymsScreen = () => {
     const url = Platform.select({ ios: appleMapsUrl, android: googleMapsUrl, default: googleMapsUrl });
     if (url) {
       Linking.openURL(url);
+    }
+  };
+
+  const handleCancelSubscription = () => {
+    Alert.alert(
+      'Cancelar Suscripción',
+      '¿Estás seguro de que deseas cancelar tu suscripción?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, Cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (activeSubscription) {
+                await userSubscriptionsApi.cancelSubscription(activeSubscription.id);
+                Alert.alert('Éxito', 'Tu suscripción ha sido cancelada');
+                await loadInitialData();
+              }
+            } catch (error) {
+              console.error('Error canceling subscription:', error);
+              Alert.alert('Error', 'No se pudo cancelar la suscripción');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRenewSubscription = async () => {
+    try {
+      if (activeSubscription) {
+        // Navegar a pantalla de renovación o mostrar opciones
+        Alert.alert('Renovar', 'Redirigiendo a opciones de renovación...');
+      }
+    } catch (error) {
+      console.error('Error renewing subscription:', error);
+      Alert.alert('Error', 'No se pudo renovar la suscripción');
     }
   };
 
@@ -183,6 +226,41 @@ const GymsScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Active Subscription Section */}
+      {activeSubscription && (
+        <View style={[styles.subscriptionSection, { backgroundColor: colors.info + '10' }]}>
+          <View style={styles.subscriptionHeader}>
+            <View style={styles.subscriptionInfo}>
+              <Text style={[styles.subscriptionTitle, { color: colors.text }]}>
+                Tu Suscripción Activa
+              </Text>
+              <Text style={[styles.subscriptionGym, { color: colors.textSecondary }]}>
+                {activeSubscription.gym_name || 'Gimnasio'}
+              </Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: '#10B981' }]}>
+              <Text style={styles.statusText}>Activa</Text>
+            </View>
+          </View>
+          <View style={styles.subscriptionActions}>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.primary }]}
+              onPress={handleRenewSubscription}
+            >
+              <Ionicons name="refresh-outline" size={18} color="white" />
+              <Text style={styles.actionButtonText}>Renovar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.error }]}
+              onPress={handleCancelSubscription}
+            >
+              <Ionicons name="trash-outline" size={18} color="white" />
+              <Text style={styles.actionButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <Text style={[styles.title, { color: colors.text }]}>
@@ -265,6 +343,59 @@ const GymsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  subscriptionSection: {
+    padding: 16,
+    margin: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0284C7',
+  },
+  subscriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  subscriptionInfo: {
+    flex: 1,
+  },
+  subscriptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  subscriptionGym: {
+    fontSize: 14,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  subscriptionActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  actionButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

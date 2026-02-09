@@ -17,8 +17,9 @@ import { useNavigation } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Spacing } from '@/constants/theme';
-import { DayWorkout, Supplement } from '@/types';
+import { DayWorkout, Supplement, WeeklyRoutine, Gym } from '@/types';
 import { routinesApi, storeApi, userSubscriptionsApi } from '@/api';
+import { useApp } from '@/contexts/AppContext';
 
 const { width } = Dimensions.get('window');
 
@@ -36,12 +37,18 @@ const HomeScreen = () => {
   const { colors } = useTheme();
   const { user, logout } = useAuth();
   const navigation = useNavigation();
+  const { notifications } = useApp();
   
   const [todayWorkout, setTodayWorkout] = useState<DayWorkout | null>(null);
   const [recommendedSupplements, setRecommendedSupplements] = useState<Supplement[]>([]);
   const [gymSubscription, setGymSubscription] = useState<GymSubscription | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<any>(null);
+  const [routines, setRoutines] = useState<WeeklyRoutine[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Calcular notificaciones sin leer
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   // Mock gym subscription data
   // TODO: En el futuro, cargar suscripción actual del usuario desde la BD
@@ -53,14 +60,17 @@ const HomeScreen = () => {
       const subscription = await userSubscriptionsApi.getUserActiveSubscription();
       
       // Cargar otros datos
-      const [workout, supplements] = await Promise.all([
+      const [workout, supplements, allRoutines] = await Promise.all([
         routinesApi.getTodayWorkout(),
         subscription?.gym_id ? getRecommendedSupplements(subscription.gym_id) : Promise.resolve([]),
+        routinesApi.getRoutines(),
       ]);
       
       setTodayWorkout(workout);
       // Solo mostrar suplementos si hay suscripción
       setRecommendedSupplements(subscription ? supplements : []);
+      setRoutines(allRoutines);
+      setActiveSubscription(subscription);
       
       // Mapear suscripción a GymSubscription
       if (subscription) {
@@ -216,10 +226,34 @@ const HomeScreen = () => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header 
         title=""
+        leftAction={{
+          icon: (
+            <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
+              <Ionicons name="barbell" size={18} color="#FFFFFF" />
+            </View>
+          ),
+          onPress: () => {},
+        }}
         rightActions={[
           {
-            icon: <Ionicons name="notifications-outline" size={24} color={colors.text} />,
-            onPress: () => navigation.navigate('Notifications' as never),
+            icon: (
+              <View>
+                <Ionicons name="notifications-outline" size={24} color={colors.text} />
+                {unreadCount > 0 && (
+                  <View
+                    style={[
+                      styles.badge,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text style={styles.badgeText}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ),
+            onPress: () => navigation.navigate('ProfileStack' as never, { screen: 'Notifications' } as never),
             accessibilityLabel: "Notificaciones",
           },
           {
@@ -247,81 +281,88 @@ const HomeScreen = () => {
           </Text>
         </View>
 
-        {/* Today's Workout */}
+        {/* Carrusel Principal */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Rutina de Hoy
-          </Text>
-          
-          {todayWorkout ? (
-            <Card style={styles.workoutCard}>
+          <ScrollView 
+            horizontal 
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.mainCarousel}
+            snapToInterval={width - 32}
+            decelerationRate="fast"
+          >
+            {/* Ver Rutinas */}
+            <Card key="routines" style={[styles.carouselCard, { width: width - 32 }]}>
               <TouchableOpacity
-                style={styles.workoutContent}
-                onPress={() => navigation.navigate('DayWorkout' as never, {
-                  dayWorkout: todayWorkout,
-                  dayName: 'Hoy',
-                  routineId: 'active'
-                } as never)}
+                style={styles.carouselContent}
+                onPress={() => navigation.navigate('Workouts' as never)}
+                activeOpacity={0.7}
               >
-                <View style={styles.workoutHeader}>
-                  <View style={[styles.workoutIcon, { backgroundColor: colors.primary + '20' }]}>
-                    <Ionicons 
-                      name={getMuscleGroupIcon(todayWorkout.name)} 
-                      size={24} 
-                      color={colors.primary} 
-                    />
-                  </View>
-                  <View style={styles.workoutInfo}>
-                    <Text style={[styles.workoutName, { color: colors.text }]}>
-                      {todayWorkout.name}
-                    </Text>
-                    <View style={styles.workoutStats}>
-                      <View style={styles.statItem}>
-                        <Ionicons name="barbell-outline" size={16} color={colors.textSecondary} />
-                        <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                          {todayWorkout.exercises.length} ejercicios
-                        </Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                        <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                          {todayWorkout.estimatedDuration || 60} min
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                <View style={[styles.carouselIcon, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons name="fitness-outline" size={32} color={colors.primary} />
                 </View>
-                
-                <View style={styles.workoutProgress}>
-                  <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                    Listo para empezar
-                  </Text>
-                  <View style={[styles.startButton, { backgroundColor: colors.primary }]}>
-                    <Ionicons name="play" size={16} color="white" />
-                  </View>
+                <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                  Mis Rutinas
+                </Text>
+                <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                  Gestiona y realiza tus entrenamientos
+                </Text>
+                <View style={[styles.carouselButton, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.carouselButtonText}>Ver Rutinas</Text>
                 </View>
               </TouchableOpacity>
             </Card>
-          ) : (
-            <Card style={styles.emptyWorkoutCard}>
-              <View style={styles.emptyWorkoutContent}>
-                <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
-                <Text style={[styles.emptyWorkoutTitle, { color: colors.text }]}>
-                  No hay rutina para hoy
+
+            {/* Gimnasio */}
+            {gymSubscription && (
+              <Card key="gym" style={[styles.carouselCard, { width: width - 32 }]}>
+                <View style={styles.carouselContent}>
+                  <View style={[styles.carouselIcon, { backgroundColor: colors.info + '20' }]}>
+                    <Ionicons name="business-outline" size={32} color={colors.info} />
+                  </View>
+                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                    {gymSubscription.gymName}
+                  </Text>
+                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                    {gymSubscription.planType}
+                  </Text>
+                  <View style={styles.gymDates}>
+                    <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                      Hasta: {new Date(gymSubscription.endDate).toLocaleDateString('es-ES')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.carouselButton, { backgroundColor: colors.info }]}
+                    onPress={() => navigation.navigate('Gyms' as never)}
+                  >
+                    <Text style={styles.carouselButtonText}>Gestionar Suscripción</Text>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            )}
+
+            {/* Suplementos */}
+            <Card key="supplements" style={[styles.carouselCard, { width: width - 32 }]}>
+              <TouchableOpacity
+                style={styles.carouselContent}
+                onPress={() => navigation.navigate('Store' as never)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.carouselIcon, { backgroundColor: colors.success + '20' }]}>
+                  <Ionicons name="flask-outline" size={32} color={colors.success} />
+                </View>
+                <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                  Conseguir Suplementos
                 </Text>
-                <Text style={[styles.emptyWorkoutText, { color: colors.textSecondary }]}>
-                  Crea una rutina semanal para organizar tus entrenamientos
+                <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                  Explora nuestro catálogo de suplementos
                 </Text>
-                <TouchableOpacity
-                  style={[styles.createRoutineButton, { backgroundColor: colors.primary }]}
-                  onPress={() => navigation.navigate('Workouts' as never, { screen: 'CreateRoutine' } as never)}
-                >
-                  <Text style={styles.createRoutineText}>Crear Rutina</Text>
-                </TouchableOpacity>
-              </View>
+                <View style={[styles.carouselButton, { backgroundColor: colors.success }]}>
+                  <Text style={styles.carouselButtonText}>Ir a Store</Text>
+                </View>
+              </TouchableOpacity>
             </Card>
-          )}
+          </ScrollView>
         </View>
 
         {/* Recommended Supplements */}
@@ -346,8 +387,9 @@ const HomeScreen = () => {
                   <Card key={supplement.id} style={styles.supplementCard}>
                     <TouchableOpacity
                       style={styles.supplementContent}
-                      onPress={() => navigation.navigate('ProductDetail' as never, { 
-                        productId: supplement.id 
+                      onPress={() => navigation.navigate('Store' as never, { 
+                        screen: 'ProductDetail',
+                        params: { productId: supplement.id }
                       } as never)}
                     >
                       <Image 
@@ -480,6 +522,38 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: Spacing.xxl,
   },
+  headerLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  badge: {
+    position: 'absolute',
+    right: -8,
+    top: -8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -490,6 +564,50 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  mainCarousel: {
+    // Carousel styles
+  },
+  carouselCard: {
+    marginHorizontal: 8,
+  },
+  carouselContent: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  carouselIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  carouselTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  carouselSubtitle: {
+    fontSize: 16,
+    marginBottom: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  carouselButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  carouselButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  gymDates: {
+    marginTop: 8,
   },
   section: {
     paddingHorizontal: 16,
@@ -686,6 +804,36 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  routinesScroll: {
+    // Scroll styles
+  },
+  routineCard: {
+    width: 140,
+    marginRight: 12,
+  },
+  routineContent: {
+    // Card styles already applied
+  },
+  routineIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  routineName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  routineStats: {
+    // Stats styles
+  },
+  routineStatText: {
+    fontSize: 12,
   },
   subscriptionDetails: {
     gap: 12,

@@ -102,13 +102,7 @@ const WorkoutNavigator = () => {
   return (
     <WorkoutStack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
+        headerShown: false,
       }}
     >
       <WorkoutStack.Screen 
@@ -152,13 +146,7 @@ const StoreNavigator = () => {
   return (
     <StoreStack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
+        headerShown: false,
       }}
     >
       <StoreStack.Screen 
@@ -187,13 +175,7 @@ const GymNavigator = () => {
   return (
     <GymStack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
+        headerShown: false,
       }}
     >
       <GymStack.Screen 
@@ -217,13 +199,7 @@ const ProfileNavigator = () => {
   return (
     <ProfileStack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
+        headerShown: false,
       }}
     >
       <ProfileStack.Screen 
@@ -263,7 +239,7 @@ const MainNavigator = () => {
               iconName = focused ? 'fitness' : 'fitness-outline';
               break;
             case 'Store':
-              iconName = focused ? 'cart' : 'cart-outline';
+              iconName = focused ? 'storefront' : 'storefront-outline';
               break;
             case 'Gyms':
               iconName = focused ? 'location' : 'location-outline';

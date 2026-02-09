@@ -450,7 +450,7 @@ const GymDetailScreen = () => {
             {selectedPlan && (
               <StripePaymentSheet
                 planName={selectedPlan.name}
-                amount={selectedPlan.price}
+                amount={Math.round(selectedPlan.price * 100)}
                 planId={selectedPlan.id}
                 onSuccess={handlePaymentSuccess}
                 onCancel={() => setShowPaymentModal(false)}

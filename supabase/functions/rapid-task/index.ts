@@ -23,26 +23,36 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { amount, planId, userId } = await req.json();
+    const body = await req.json();
+    const { amount, userId, type, planId, items } = body;
 
-    // Validar datos
-    if (!amount || !planId || !userId) {
+    // Validar datos comunes
+    if (!amount || !userId) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields', code: 400 }),
+        JSON.stringify({ error: 'Missing required fields: amount, userId', code: 400 }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Creating payment intent for:', { amount, planId, userId });
+    const metadata: Record<string, string> = {
+      userId,
+      type: type || 'subscription',
+    };
+
+    // Agregar metadata según el tipo
+    if (type === 'subscription' && planId) {
+      metadata.planId = planId;
+    } else if (type === 'order' && items) {
+      metadata.itemCount = items.length.toString();
+    }
+
+    console.log('Creating payment intent for:', { amount, userId, type, metadata });
 
     // Crear payment intent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Stripe usa centavos
+      amount: amount, // Ya está en centavos (enviado desde el cliente)
       currency: 'usd',
-      metadata: {
-        planId,
-        userId,
-      },
+      metadata,
     });
 
     console.log('Payment intent created:', paymentIntent.id);
@@ -50,7 +60,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
+        id: paymentIntent.id,
       }),
       {
         headers: { 

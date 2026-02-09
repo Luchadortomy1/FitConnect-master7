@@ -225,19 +225,9 @@ const LoginScreen = () => {
         <View style={styles.socialContainer}>
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>o continúa con</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-google" size={18} color={colors.text} />
-            <Text style={styles.socialText}>Continuar con Google</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-facebook" size={18} color={colors.text} />
-            <Text style={styles.socialText}>Continuar con Facebook</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

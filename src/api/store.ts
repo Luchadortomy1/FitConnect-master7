@@ -159,8 +159,35 @@ export const storeApi = {
   },
 
   async getSupplement(id: string): Promise<Supplement | null> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockSupplements.find(supplement => supplement.id === id) || null;
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) {
+        console.warn('Error fetching supplement, using mock data:', error);
+        return mockSupplements.find(supplement => supplement.id === id) || null;
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        price: data.price,
+        image: data.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
+        category: (data.category || 'other') as any,
+        rating: 4.5,
+        reviews: 0,
+        ingredients: data.ingredients || [],
+        servingSize: data.serving_size || '',
+        servingsPerContainer: data.servings_per_container || 0,
+      };
+    } catch (error) {
+      console.error('Error getting supplement:', error);
+      return mockSupplements.find(supplement => supplement.id === id) || null;
+    }
   },
 
   async getSupplementsByCategory(category: string): Promise<Supplement[]> {

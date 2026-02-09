@@ -47,8 +47,8 @@ export const Header: React.FC<HeaderProps> = ({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    minHeight: 60,
+    paddingVertical: 12,
+    minHeight: 65,
   };
 
   const titleContainerStyle: ViewStyle = {
@@ -70,8 +70,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const actionStyle: ViewStyle = {
-    width: 40,
-    height: 40,
+    width: 50,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
   };
@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: Spacing.sm,
+    gap: 8,
   };
 
   return (

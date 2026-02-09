@@ -79,6 +79,14 @@ export const StripePaymentSheet = ({
       const { error: presentError } = await presentPaymentSheet();
 
       if (presentError) {
+        // Si el usuario cancela, simplemente cerramos sin error
+        if (presentError.code === 'Canceled') {
+          console.log('Usuario canceló el pago');
+          onCancel();
+          setLoading(false);
+          return;
+        }
+        
         console.error('Present PaymentSheet error:', presentError);
         Alert.alert('Error', presentError.message || 'Error al procesar el pago');
         setLoading(false);
@@ -116,7 +124,7 @@ export const StripePaymentSheet = ({
         </Text>
         
         <Text style={[styles.amountText, { color: colors.primary }]}>
-          ${amount.toFixed(2)}/mes
+          ${(amount / 100).toFixed(2)}/mes
         </Text>
 
         <Text style={[styles.description, { color: colors.textSecondary }]}>
@@ -141,7 +149,7 @@ export const StripePaymentSheet = ({
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.payButtonText}>Pagar ${amount.toFixed(2)}</Text>
+            <Text style={styles.payButtonText}>Pagar ${(amount / 100).toFixed(2)}</Text>
           )}
         </TouchableOpacity>
       </View>

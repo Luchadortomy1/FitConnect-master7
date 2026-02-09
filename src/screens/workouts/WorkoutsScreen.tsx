@@ -356,6 +356,7 @@ const WorkoutsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: 24,
   },
   loadingContainer: {
     flex: 1,

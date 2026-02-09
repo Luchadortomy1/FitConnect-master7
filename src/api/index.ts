@@ -5,3 +5,4 @@ export { gymsApi } from './gyms';
 export { googlePlacesApi } from './googlePlaces';
 export { routinesApi } from './routines';
 export { userSubscriptionsApi } from './userSubscriptions';
+export { ordersApi } from './orders';
