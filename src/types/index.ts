@@ -6,6 +6,7 @@ export interface User {
   age?: number;
   weight?: number;
   height?: number;
+  gender?: 'male' | 'female';
   goal?: 'lose_weight' | 'gain_muscle' | 'maintain' | 'endurance';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active';
   targetCalories?: number;

@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button, Input } from '@/components';
 import { User } from '@/types';
+import { calculateMacrosForUser, MacroCalculatorInput, MacroResult } from '@/utils/macroCalculator';
 
 // BMI calculation function
 const calculateBMI = (weight: number, height: number): number => {
@@ -64,10 +65,12 @@ const ProfileScreen = () => {
     age: user?.age?.toString() || '',
     weight: user?.weight?.toString() || '',
     height: user?.height?.toString() || '',
+    gender: user?.gender || 'male',
     goal: user?.goal || 'maintain',
     activityLevel: user?.activityLevel || 'moderate',
   });
   const [loading, setLoading] = useState(false);
+  const [macros, setMacros] = useState<MacroResult | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -76,11 +79,36 @@ const ProfileScreen = () => {
         age: user.age?.toString() || '',
         weight: user.weight?.toString() || '',
         height: user.height?.toString() || '',
+        gender: user.gender || 'male',
         goal: user.goal || 'maintain',
         activityLevel: user.activityLevel || 'moderate',
       });
     }
   }, [user]);
+
+  // Calculate macros whenever weight, height, age, gender, goal, or activity level changes
+  useEffect(() => {
+    try {
+      const age = Number.parseInt(formData.age, 10);
+      const weight = Number.parseFloat(formData.weight);
+      const height = Number.parseFloat(formData.height);
+
+      if (weight && height && age && !Number.isNaN(age) && !Number.isNaN(weight) && !Number.isNaN(height)) {
+        const macroResult = calculateMacrosForUser({
+          weight,
+          height,
+          age,
+          gender: formData.gender as 'male' | 'female',
+          activityLevel: formData.activityLevel as 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active',
+          goal: formData.goal as 'lose_weight' | 'gain_muscle' | 'maintain',
+        });
+        setMacros(macroResult);
+      }
+    } catch (error) {
+      console.error('Error calculating macros:', error);
+      setMacros(null);
+    }
+  }, [formData.weight, formData.height, formData.age, formData.gender, formData.goal, formData.activityLevel]);
 
   const handleSave = async () => {
     try {
@@ -118,6 +146,7 @@ const ProfileScreen = () => {
         age: formData.age ? age : undefined,
         weight: formData.weight ? weight : undefined,
         height: formData.height ? height : undefined,
+        gender: formData.gender as 'male' | 'female',
         goal: formData.goal,
         activityLevel: formData.activityLevel,
       };
@@ -145,6 +174,7 @@ const ProfileScreen = () => {
         age: user.age?.toString() || '',
         weight: user.weight?.toString() || '',
         height: user.height?.toString() || '',
+        gender: user.gender || 'male',
         goal: user.goal || 'maintain',
         activityLevel: user.activityLevel || 'moderate',
       });
@@ -157,10 +187,9 @@ const ProfileScreen = () => {
   const bmiInfo = bmi ? getBMIInterpretation(bmi) : null;
 
   const goalOptions = [
-    { value: 'lose_weight', label: 'Perder peso' },
-    { value: 'gain_muscle', label: 'Ganar músculo' },
-    { value: 'maintain', label: 'Mantener peso' },
-    { value: 'endurance', label: 'Mejorar resistencia' },
+    { value: 'lose_weight', label: 'Pérdida de grasa' },
+    { value: 'gain_muscle', label: 'Ganancia muscular' },
+    { value: 'maintain', label: 'Mantenimiento' },
   ];
 
   const activityOptions = [
@@ -288,6 +317,43 @@ const ProfileScreen = () => {
 
               {editing && (
                 <>
+                  {/* Gender Selector */}
+                  <View style={styles.pickerContainer}>
+                    <Text style={[styles.pickerLabel, { color: colors.text }]}>
+                      Género
+                    </Text>
+                    <View style={[styles.pickerWrapper, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          formData.gender === 'male' && { backgroundColor: colors.primary + '20' },
+                        ]}
+                        onPress={() => setFormData({ ...formData, gender: 'male' })}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: formData.gender === 'male' ? colors.primary : colors.text }
+                        ]}>
+                          Hombre
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          formData.gender === 'female' && { backgroundColor: colors.primary + '20' },
+                        ]}
+                        onPress={() => setFormData({ ...formData, gender: 'female' })}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: formData.gender === 'female' ? colors.primary : colors.text }
+                        ]}>
+                          Mujer
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
                   {/* Goal Selector */}
                   <View style={styles.pickerContainer}>
                     <Text style={[styles.pickerLabel, { color: colors.text }]}>
@@ -470,6 +536,140 @@ const ProfileScreen = () => {
             </View>
           )}
 
+          {/* Macros Section */}
+          {macros && (
+            <View style={[styles.section, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Macronutrientes Diarios
+              </Text>
+
+              {/* Calories Display */}
+              <View style={[styles.caloriesContainer, { backgroundColor: colors.primary + '15' }]}>
+                <View style={styles.caloriesContent}>
+                  <Text style={[styles.caloriesLabel, { color: colors.textSecondary }]}>
+                    Calorías Diarias
+                  </Text>
+                  <Text style={[styles.caloriesValue, { color: colors.primary }]}>
+                    {macros.calories}
+                  </Text>
+                  <Text style={[styles.caloriesUnit, { color: colors.textSecondary }]}>
+                    kcal
+                  </Text>
+                </View>
+                <View style={styles.tdeeInfo}>
+                  <Text style={[styles.tdeeLabel, { color: colors.textSecondary }]}>
+                    TDEE: {macros.tdee} kcal
+                  </Text>
+                  <Text style={[styles.tdeeLabel, { color: colors.textSecondary }]}>
+                    Ajuste: {macros.calories - macros.tdee > 0 ? '+' : ''}{macros.calories - macros.tdee}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Macros Distribution */}
+              <View style={styles.macrosGrid}>
+                {/* Protein */}
+                <View style={[styles.macroCard, { backgroundColor: colors.background, borderLeftColor: '#EF4444', borderLeftWidth: 4 }]}>
+                  <View style={styles.macroCardContent}>
+                    <Ionicons name="nutrition" size={20} color="#EF4444" />
+                    <Text style={[styles.macroName, { color: colors.text }]}>
+                      Proteína
+                    </Text>
+                  </View>
+                  <Text style={[styles.macroValue, { color: '#EF4444' }]}>
+                    {macros.protein}g
+                  </Text>
+                  <Text style={[styles.macroCalories, { color: colors.textSecondary }]}>
+                    {Math.round(macros.protein * 4)} kcal (16%)
+                  </Text>
+                </View>
+
+                {/* Carbs */}
+                <View style={[styles.macroCard, { backgroundColor: colors.background, borderLeftColor: '#F59E0B', borderLeftWidth: 4 }]}>
+                  <View style={styles.macroCardContent}>
+                    <Ionicons name="flame" size={20} color="#F59E0B" />
+                    <Text style={[styles.macroName, { color: colors.text }]}>
+                      Carbohidratos
+                    </Text>
+                  </View>
+                  <Text style={[styles.macroValue, { color: '#F59E0B' }]}>
+                    {macros.carbs}g
+                  </Text>
+                  <Text style={[styles.macroCalories, { color: colors.textSecondary }]}>
+                    {Math.round(macros.carbs * 4)} kcal (47%)
+                  </Text>
+                </View>
+
+                {/* Fats */}
+                <View style={[styles.macroCard, { backgroundColor: colors.background, borderLeftColor: '#10B981', borderLeftWidth: 4 }]}>
+                  <View style={styles.macroCardContent}>
+                    <Ionicons name="water" size={20} color="#10B981" />
+                    <Text style={[styles.macroName, { color: colors.text }]}>
+                      Grasas
+                    </Text>
+                  </View>
+                  <Text style={[styles.macroValue, { color: '#10B981' }]}>
+                    {macros.fats}g
+                  </Text>
+                  <Text style={[styles.macroCalories, { color: colors.textSecondary }]}>
+                    {Math.round(macros.fats * 9)} kcal (37%)
+                  </Text>
+                </View>
+              </View>
+
+              {/* Health Metrics */}
+              <View style={[styles.metricsContainer, { backgroundColor: colors.background }]}>
+                <View style={styles.metricItem}>
+                  <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>
+                    TMB
+                  </Text>
+                  <Text style={[styles.metricValue, { color: colors.text }]}>
+                    {macros.tmb} kcal
+                  </Text>
+                  <Text style={[styles.metricDesc, { color: colors.textSecondary }]}>
+                    Tasa Metabólica Basal
+                  </Text>
+                </View>
+
+                <View style={styles.metricDivider} />
+
+                <View style={styles.metricItem}>
+                  <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>
+                    TDEE
+                  </Text>
+                  <Text style={[styles.metricValue, { color: colors.text }]}>
+                    {macros.tdee} kcal
+                  </Text>
+                  <Text style={[styles.metricDesc, { color: colors.textSecondary }]}>
+                    Gasto Energético Total
+                  </Text>
+                </View>
+
+                <View style={styles.metricDivider} />
+
+                <View style={styles.metricItem}>
+                  <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>
+                    IMC
+                  </Text>
+                  <Text style={[styles.metricValue, { color: colors.primary }]}>
+                    {macros.bmi}
+                  </Text>
+                  <Text style={[styles.metricDesc, { color: colors.textSecondary }]}>
+                    Índice de Masa Corporal
+                  </Text>
+                </View>
+              </View>
+
+              {/* Info Message */}
+              <View style={[styles.infoMessage, { backgroundColor: colors.primary + '10' }]}>
+                <Ionicons name="information-circle" size={20} color={colors.primary} />
+                <Text style={[styles.infoMessageText, { color: colors.text }]}>
+                  Estos macros se actualizan automáticamente según tus datos personales, actividad y objetivo
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Goals & Activity */}
           <View style={[styles.section, { backgroundColor: colors.surface }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -495,50 +695,6 @@ const ProfileScreen = () => {
             </View>
           </View>
 
-          {/* Quick Stats */}
-          <View style={[styles.section, { backgroundColor: colors.surface, marginBottom: 20 }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Objetivos Nutricionales
-            </Text>
-            
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {user?.targetCalories || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  Calorías
-                </Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {user?.targetProtein || 0}g
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  Proteína
-                </Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {user?.targetCarbs || 0}g
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  Carbohidratos
-                </Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {user?.targetFat || 0}g
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  Grasas
-                </Text>
-              </View>
-            </View>
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -652,7 +808,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   infoLabel: {
     fontSize: 16,
@@ -797,6 +953,111 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  caloriesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  caloriesContent: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  caloriesLabel: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  caloriesValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  caloriesUnit: {
+    fontSize: 12,
+  },
+  tdeeInfo: {
+    flex: 1,
+    paddingLeft: 20,
+    justifyContent: 'center',
+  },
+  tdeeLabel: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  macrosGrid: {
+    flexDirection: 'column',
+    gap: 12,
+    marginBottom: 20,
+  },
+  macroCard: {
+    padding: 14,
+    borderRadius: 12,
+  },
+  macroCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 6,
+  },
+  macroName: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+    flexShrink: 1,
+  },
+  macroValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  macroCalories: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  metricsContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  metricItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  metricDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    marginHorizontal: 16,
+  },
+  metricLabel: {
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  metricDesc: {
+    fontSize: 11,
+    lineHeight: 14,
+    textAlign: 'center',
+  },
+  infoMessage: {
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  infoMessageText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 
