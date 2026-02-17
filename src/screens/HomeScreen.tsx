@@ -22,6 +22,9 @@ import { routinesApi, storeApi, userSubscriptionsApi } from '@/api';
 import { useApp } from '@/contexts/AppContext';
 
 const { width } = Dimensions.get('window');
+const CAROUSEL_CARD_HEIGHT = 320;
+const CAROUSEL_PAGE_WIDTH = width;
+const CAROUSEL_CARD_WIDTH = width - 48; // leave margin so it doesn't touch edges
 
 interface GymSubscription {
   id: string;
@@ -288,80 +291,91 @@ const HomeScreen = () => {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             style={styles.mainCarousel}
-            snapToInterval={width - 32}
+            contentContainerStyle={styles.carouselContentContainer}
+            snapToInterval={CAROUSEL_PAGE_WIDTH}
             decelerationRate="fast"
+            snapToAlignment="center"
+            bounces={false}
+            alwaysBounceHorizontal={false}
+            overScrollMode="never"
           >
             {/* Ver Rutinas */}
-            <Card key="routines" style={[styles.carouselCard, { width: width - 32 }]}>
-              <TouchableOpacity
-                style={styles.carouselContent}
-                onPress={() => navigation.navigate('Workouts' as never)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.carouselIcon, { backgroundColor: colors.primary + '20' }]}>
-                  <Ionicons name="fitness-outline" size={32} color={colors.primary} />
-                </View>
-                <Text style={[styles.carouselTitle, { color: colors.text }]}>
-                  Mis Rutinas
-                </Text>
-                <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
-                  Gestiona y realiza tus entrenamientos
-                </Text>
-                <View style={[styles.carouselButton, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.carouselButtonText}>Ver Rutinas</Text>
-                </View>
-              </TouchableOpacity>
-            </Card>
+            <View style={styles.carouselPage}>
+              <Card key="routines" style={styles.carouselCard}>
+                <TouchableOpacity
+                  style={styles.carouselContent}
+                  onPress={() => navigation.navigate('Workouts' as never)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.carouselIcon, { backgroundColor: colors.primary + '20' }]}>
+                    <Ionicons name="fitness-outline" size={32} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                    Mis Rutinas
+                  </Text>
+                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                    Gestiona y realiza tus entrenamientos
+                  </Text>
+                  <View style={[styles.carouselButton, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.carouselButtonText}>Ver Rutinas</Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </View>
 
             {/* Gimnasio */}
             {gymSubscription && (
-              <Card key="gym" style={[styles.carouselCard, { width: width - 32 }]}>
-                <View style={styles.carouselContent}>
-                  <View style={[styles.carouselIcon, { backgroundColor: colors.info + '20' }]}>
-                    <Ionicons name="business-outline" size={32} color={colors.info} />
-                  </View>
-                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
-                    {gymSubscription.gymName}
-                  </Text>
-                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
-                    {gymSubscription.planType}
-                  </Text>
-                  <View style={styles.gymDates}>
-                    <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
-                      Hasta: {new Date(gymSubscription.endDate).toLocaleDateString('es-ES')}
+              <View style={styles.carouselPage}>
+                <Card key="gym" style={styles.carouselCard}>
+                  <View style={styles.carouselContent}>
+                    <View style={[styles.carouselIcon, { backgroundColor: colors.info + '20' }]}>
+                      <Ionicons name="business-outline" size={32} color={colors.info} />
+                    </View>
+                    <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                      {gymSubscription.gymName}
                     </Text>
+                    <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                      {gymSubscription.planType}
+                    </Text>
+                    <View style={styles.gymDates}>
+                      <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                        Hasta: {new Date(gymSubscription.endDate).toLocaleDateString('es-ES')}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.carouselButton, { backgroundColor: colors.info }]}
+                      onPress={() => navigation.navigate('Gyms' as never)}
+                    >
+                      <Text style={styles.carouselButtonText}>Gestionar Suscripción</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.carouselButton, { backgroundColor: colors.info }]}
-                    onPress={() => navigation.navigate('Gyms' as never)}
-                  >
-                    <Text style={styles.carouselButtonText}>Gestionar Suscripción</Text>
-                  </TouchableOpacity>
-                </View>
-              </Card>
+                </Card>
+              </View>
             )}
 
             {/* Suplementos */}
-            <Card key="supplements" style={[styles.carouselCard, { width: width - 32 }]}>
-              <TouchableOpacity
-                style={styles.carouselContent}
-                onPress={() => navigation.navigate('Store' as never)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.carouselIcon, { backgroundColor: colors.success + '20' }]}>
-                  <Ionicons name="flask-outline" size={32} color={colors.success} />
-                </View>
-                <Text style={[styles.carouselTitle, { color: colors.text }]}>
-                  Conseguir Suplementos
-                </Text>
-                <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
-                  Explora nuestro catálogo de suplementos
-                </Text>
-                <View style={[styles.carouselButton, { backgroundColor: colors.success }]}>
-                  <Text style={styles.carouselButtonText}>Ir a Store</Text>
-                </View>
-              </TouchableOpacity>
-            </Card>
+            <View style={styles.carouselPage}>
+              <Card key="supplements" style={styles.carouselCard}>
+                <TouchableOpacity
+                  style={styles.carouselContent}
+                  onPress={() => navigation.navigate('Store' as never)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.carouselIcon, { backgroundColor: colors.success + '20' }]}>
+                    <Ionicons name="flask-outline" size={32} color={colors.success} />
+                  </View>
+                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                    Conseguir Suplementos
+                  </Text>
+                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                    Explora nuestro catálogo de suplementos
+                  </Text>
+                  <View style={[styles.carouselButton, { backgroundColor: colors.success }]}>
+                    <Text style={styles.carouselButtonText}>Ir a Store</Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </View>
           </ScrollView>
         </View>
 
@@ -566,10 +580,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainCarousel: {
-    // Carousel styles
+    paddingVertical: 4,
+  },
+  carouselContentContainer: {
+    paddingHorizontal: 0,
+  },
+  carouselPage: {
+    width: CAROUSEL_PAGE_WIDTH,
+    paddingHorizontal: 16,
   },
   carouselCard: {
-    marginHorizontal: 8,
+    width: CAROUSEL_CARD_WIDTH,
+    height: CAROUSEL_CARD_HEIGHT,
+    alignSelf: 'center',
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   carouselContent: {
     alignItems: 'center',
