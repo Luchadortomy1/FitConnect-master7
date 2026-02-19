@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -22,18 +22,20 @@ interface RouteParams {
   dayWorkout: DayWorkout;
   dayName: string;
   routineId: string;
+  dayKey: WeekDay;
 }
+
+type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 const DayWorkoutScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
-  const { dayWorkout, dayName, routineId } = route.params as RouteParams;
+  const { dayWorkout, dayName, routineId, dayKey } = route.params as RouteParams;
   
   const [workout, setWorkout] = useState<DayWorkout>(dayWorkout);
   const [isTrainingMode, setIsTrainingMode] = useState(false);
   const [completedSets, setCompletedSets] = useState<Record<string, boolean[]>>({});
-  const [editingExercise, setEditingExercise] = useState<string | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [tempExercise, setTempExercise] = useState<DayExercise | null>(null);
 
@@ -45,6 +47,25 @@ const DayWorkoutScreen = () => {
     });
     setCompletedSets(initialSets);
   }, [workout]);
+
+  // Reload routine data when screen is focused (after adding exercises)
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUpdatedRoutine = async () => {
+        try {
+          const updatedRoutine = await routinesApi.getRoutineById(routineId);
+          if (updatedRoutine && updatedRoutine.weeklyPlan[dayKey]) {
+            const updatedDayWorkout = updatedRoutine.weeklyPlan[dayKey];
+            setWorkout(updatedDayWorkout);
+          }
+        } catch (error) {
+          console.error('Error loading updated routine:', error);
+        }
+      };
+
+      loadUpdatedRoutine();
+    }, [routineId, dayKey])
+  );
 
   const handleStartTraining = () => {
     setIsTrainingMode(true);
@@ -150,7 +171,8 @@ const DayWorkoutScreen = () => {
     const completedCount = exerciseSets.filter(Boolean).length;
     
     return (
-      <Card key={exercise.id} style={styles.exerciseCard}>
+      <Card key={exercise.id} style={[styles.exerciseCard, { overflow: 'hidden' as any }]}>
+        
         <View style={styles.exerciseHeader}>
           <View style={styles.exerciseInfo}>
             <View style={styles.exerciseTitleRow}>
@@ -250,12 +272,13 @@ const DayWorkoutScreen = () => {
               style={[styles.addButton, { backgroundColor: colors.primary }]}
               onPress={() => navigation.navigate('AddExercise' as never, { 
                 dayWorkout: workout, 
-                routineId 
+                routineId,
+                dayKey
               } as never)}
             >
               <Ionicons name="add" size={24} color="white" />
             </TouchableOpacity>
-          ) : null
+          ) : undefined
         }
       />
 
@@ -320,7 +343,8 @@ const DayWorkoutScreen = () => {
                 title="Agregar Ejercicio"
                 onPress={() => navigation.navigate('AddExercise' as never, { 
                   dayWorkout: workout, 
-                  routineId 
+                  routineId,
+                  dayKey
                 } as never)}
                 style={styles.addExerciseButton}
               />
@@ -372,6 +396,7 @@ const DayWorkoutScreen = () => {
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <Header
             title="Editar Ejercicio"
+            showBack={false}
             rightComponent={
               <TouchableOpacity onPress={() => setEditModalVisible(false)}>
                 <Text style={[styles.cancelText, { color: colors.primary }]}>Cancelar</Text>

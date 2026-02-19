@@ -16,6 +16,7 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { WeeklyRoutine, WeekDay } from '@/types';
 import { routinesApi } from '@/api/routines';
+import { workoutTemplates, getTemplateById } from '@/utils/workoutTemplates';
 
 const CreateRoutineScreen = () => {
   const { colors } = useTheme();
@@ -24,6 +25,7 @@ const CreateRoutineScreen = () => {
   const [routineName, setRoutineName] = useState('');
   const [routineDescription, setRoutineDescription] = useState('');
   const [selectedDays, setSelectedDays] = useState<Set<WeekDay>>(new Set());
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   const weekDays: { key: WeekDay; label: string; short: string }[] = [
@@ -36,46 +38,6 @@ const CreateRoutineScreen = () => {
     { key: 'sunday', label: 'Domingo', short: 'D' },
   ];
 
-  const routineTemplates = [
-    {
-      id: 'push_pull_legs',
-      name: 'Push/Pull/Legs',
-      description: 'Rutina clásica de 6 días dividida por movimientos',
-      days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as WeekDay[],
-      workouts: {
-        monday: { name: 'Push Day - Pecho, Hombros y Tríceps', exercises: [] },
-        tuesday: { name: 'Pull Day - Espalda y Bíceps', exercises: [] },
-        wednesday: { name: 'Leg Day - Piernas Completo', exercises: [] },
-        thursday: { name: 'Push Day - Pecho, Hombros y Tríceps', exercises: [] },
-        friday: { name: 'Pull Day - Espalda y Bíceps', exercises: [] },
-        saturday: { name: 'Leg Day - Piernas y Glúteos', exercises: [] },
-      }
-    },
-    {
-      id: 'upper_lower',
-      name: 'Upper/Lower Split',
-      description: 'Rutina de 4 días alternando tren superior e inferior',
-      days: ['monday', 'tuesday', 'thursday', 'friday'] as WeekDay[],
-      workouts: {
-        monday: { name: 'Upper Body - Tren Superior', exercises: [] },
-        tuesday: { name: 'Lower Body - Tren Inferior', exercises: [] },
-        thursday: { name: 'Upper Body - Tren Superior', exercises: [] },
-        friday: { name: 'Lower Body - Tren Inferior', exercises: [] },
-      }
-    },
-    {
-      id: 'full_body',
-      name: 'Full Body',
-      description: 'Rutina de cuerpo completo 3 días por semana',
-      days: ['monday', 'wednesday', 'friday'] as WeekDay[],
-      workouts: {
-        monday: { name: 'Full Body A', exercises: [] },
-        wednesday: { name: 'Full Body B', exercises: [] },
-        friday: { name: 'Full Body C', exercises: [] },
-      }
-    },
-  ];
-
   const toggleDaySelection = (day: WeekDay) => {
     const newSelectedDays = new Set(selectedDays);
     if (newSelectedDays.has(day)) {
@@ -84,9 +46,26 @@ const CreateRoutineScreen = () => {
       newSelectedDays.add(day);
     }
     setSelectedDays(newSelectedDays);
+    
+    // Limpiar template si el usuario modifica los días manualmente
+    // después de haber seleccionado uno
+    if (selectedTemplateId) {
+      const template = getTemplateById(selectedTemplateId);
+      if (template) {
+        const templateDays = new Set(template.days);
+        if (newSelectedDays.size !== templateDays.size || 
+            ![...newSelectedDays].every(d => templateDays.has(d))) {
+          setSelectedTemplateId(null);
+        }
+      }
+    }
   };
 
-  const selectTemplate = (template: typeof routineTemplates[0]) => {
+  const selectTemplate = (templateId: string) => {
+    const template = getTemplateById(templateId);
+    if (!template) return;
+
+    setSelectedTemplateId(templateId);
     setRoutineName(template.name);
     setRoutineDescription(template.description);
     setSelectedDays(new Set(template.days));
@@ -108,15 +87,34 @@ const CreateRoutineScreen = () => {
     try {
       const weeklyPlan: Partial<WeeklyRoutine['weeklyPlan']> = {};
       
-      // Create basic day workouts for selected days
-      for (const day of selectedDays) {
-        const dayLabel = weekDays.find(d => d.key === day)?.label || day;
-        weeklyPlan[day] = {
-          id: `day-${Date.now()}-${day}`,
-          name: `Entrenamiento ${dayLabel}`,
-          exercises: [],
-          estimatedDuration: 60,
-        };
+      // Si se seleccionó un template, usar sus ejercicios
+      if (selectedTemplateId) {
+        const template = getTemplateById(selectedTemplateId);
+        if (template) {
+          // Usar los ejercicios predefinidos del template (con imágenes)
+          for (const day of selectedDays) {
+            const templateDay = template.workouts[day];
+            if (templateDay) {
+              weeklyPlan[day] = {
+                id: `day-${Date.now()}-${day}`,
+                name: templateDay.name,
+                exercises: templateDay.exercises,
+                estimatedDuration: 60,
+              };
+            }
+          }
+        }
+      } else {
+        // Rutina personalizada: crear días sin ejercicios
+        for (const day of selectedDays) {
+          const dayLabel = weekDays.find(d => d.key === day)?.label || day;
+          weeklyPlan[day] = {
+            id: `day-${Date.now()}-${day}`,
+            name: `Entrenamiento ${dayLabel}`,
+            exercises: [],
+            estimatedDuration: 60,
+          };
+        }
       }
 
       const newRoutine: Omit<WeeklyRoutine, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -218,11 +216,14 @@ const CreateRoutineScreen = () => {
           </Text>
           
           <View style={styles.templatesList}>
-            {routineTemplates.map(template => (
-              <Card key={template.id} style={styles.templateCard}>
+            {workoutTemplates.map(template => (
+              <Card key={template.id} style={[
+                styles.templateCard,
+                selectedTemplateId === template.id && { borderWidth: 2, borderColor: colors.primary }
+              ]}>
                 <TouchableOpacity
                   style={styles.templateContent}
-                  onPress={() => selectTemplate(template)}
+                  onPress={() => selectTemplate(template.id)}
                 >
                   <View style={styles.templateInfo}>
                     <Text style={[styles.templateName, { color: colors.text }]}>
@@ -238,7 +239,12 @@ const CreateRoutineScreen = () => {
                       </Text>
                     </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  {selectedTemplateId === template.id && (
+                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                  )}
+                  {selectedTemplateId !== template.id && (
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  )}
                 </TouchableOpacity>
               </Card>
             ))}

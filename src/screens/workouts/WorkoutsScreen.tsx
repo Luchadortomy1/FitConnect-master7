@@ -122,7 +122,8 @@ const WorkoutsScreen = () => {
       navigation.navigate('DayWorkout' as never, { 
         dayWorkout: workout, 
         dayName: weekDays.find(d => d.key === day)?.label || day,
-        routineId: activeRoutine.id
+        routineId: activeRoutine.id,
+        dayKey: day
       } as never);
     } else {
       navigation.navigate('CreateDayWorkout' as never, { 

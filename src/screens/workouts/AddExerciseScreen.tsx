@@ -21,6 +21,7 @@ import { routinesApi, exercisesDatabase } from '@/api/routines';
 interface RouteParams {
   dayWorkout: DayWorkout;
   routineId: string;
+  dayKey: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 }
 
 const SeparatorComponent = () => <View style={styles.separator} />;
@@ -29,7 +30,7 @@ const AddExerciseScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
-  const { dayWorkout } = route.params as RouteParams;
+  const { dayWorkout, routineId, dayKey } = route.params as RouteParams;
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState('all');
@@ -72,60 +73,83 @@ const AddExerciseScreen = () => {
     }
   };
 
-  const addExerciseFromDatabase = (exercise: typeof exercisesDatabase[0]) => {
-    // Here you would typically save to the routine
-    Alert.alert(
-      'Ejercicio agregado',
-      `${exercise.name} ha sido agregado a tu rutina`,
-      [
-        { text: 'Agregar otro', style: 'default' },
-        { 
-          text: 'Ver rutina', 
-          onPress: () => navigation.goBack()
-        }
-      ]
-    );
+  const addExerciseFromDatabase = async (exercise: typeof exercisesDatabase[0]) => {
+    try {
+      const newExercise: DayExercise = {
+        id: `db-${Date.now()}-${Math.random()}`,
+        name: exercise.name,
+        muscle: exercise.muscle,
+        sets: 3,
+        reps: '10-12',
+        weight: undefined,
+        equipment: exercise.equipment,
+        notes: undefined,
+      };
+
+      await routinesApi.addExerciseToDay(routineId, dayKey, newExercise);
+      
+      Alert.alert(
+        'Ejercicio agregado',
+        `${exercise.name} ha sido agregado a tu rutina`,
+        [
+          { text: 'Agregar otro', style: 'default' },
+          { 
+            text: 'Ver rutina', 
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error adding exercise:', error);
+      Alert.alert('Error', 'No se pudo agregar el ejercicio');
+    }
   };
 
-  const addCustomExercise = () => {
+  const addCustomExercise = async () => {
     if (!customExercise.name?.trim() || !customExercise.muscle?.trim()) {
       Alert.alert('Error', 'Ingresa al menos el nombre y grupo muscular del ejercicio');
       return;
     }
 
-    const newExercise: DayExercise = {
-      id: `custom-${Date.now()}-${Math.random()}`,
-      name: customExercise.name.trim(),
-      muscle: customExercise.muscle.trim(),
-      sets: customExercise.sets || 3,
-      reps: customExercise.reps || '10-12',
-      weight: customExercise.weight,
-      equipment: customExercise.equipment?.trim(),
-      notes: customExercise.notes?.trim(),
-    };
+    try {
+      const newExercise: DayExercise = {
+        id: `custom-${Date.now()}-${Math.random()}`,
+        name: customExercise.name.trim(),
+        muscle: customExercise.muscle.trim(),
+        sets: customExercise.sets || 3,
+        reps: customExercise.reps || '10-12',
+        weight: customExercise.weight,
+        equipment: customExercise.equipment?.trim(),
+        notes: customExercise.notes?.trim(),
+      };
 
-    // Here you would typically save to the routine
-    Alert.alert(
-      'Ejercicio personalizado agregado',
-      `${newExercise.name} ha sido agregado a tu rutina`,
-      [
-        { text: 'Agregar otro', onPress: () => {
-          setCustomExercise({
-            name: '',
-            muscle: '',
-            sets: 3,
-            reps: '10-12',
-            weight: undefined,
-            equipment: '',
-            notes: '',
-          });
-        }},
-        { 
-          text: 'Ver rutina', 
-          onPress: () => navigation.goBack()
-        }
-      ]
-    );
+      await routinesApi.addExerciseToDay(routineId, dayKey, newExercise);
+      
+      Alert.alert(
+        'Ejercicio personalizado agregado',
+        `${newExercise.name} ha sido agregado a tu rutina`,
+        [
+          { text: 'Agregar otro', onPress: () => {
+            setCustomExercise({
+              name: '',
+              muscle: '',
+              sets: 3,
+              reps: '10-12',
+              weight: undefined,
+              equipment: '',
+              notes: '',
+            });
+          }},
+          { 
+            text: 'Ver rutina', 
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error adding custom exercise:', error);
+      Alert.alert('Error', 'No se pudo agregar el ejercicio personalizado');
+    }
   };
 
   const getMuscleGroupColor = (muscle: string): string => {

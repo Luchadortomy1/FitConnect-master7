@@ -1,11 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { Spacing, Typography } from '@/constants/theme';
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  showBack?: boolean;
+  rightComponent?: React.ReactNode;
   leftAction?: {
     icon: React.ReactNode;
     onPress: () => void;
@@ -28,6 +32,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   title,
   subtitle,
+  showBack,
+  rightComponent,
   leftAction,
   rightAction,
   rightActions,
@@ -35,6 +41,10 @@ export const Header: React.FC<HeaderProps> = ({
   showBorder = true,
 }) => {
   const { colors } = useTheme();
+  const navigation = useNavigation();
+
+  // Ensure rightComponent is valid (not a string or other invalid value)
+  const validRightComponent = rightComponent && typeof rightComponent === 'object' ? rightComponent : null;
 
   const headerStyle: ViewStyle = {
     backgroundColor: backgroundColor || colors.background,
@@ -86,50 +96,41 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <View style={headerStyle}>
       <View style={containerStyle}>
+        {/* Left Action */}
         <View style={actionStyle}>
-          {leftAction && (
-            <TouchableOpacity
-              onPress={leftAction.onPress}
-              style={styles.actionButton}
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel={leftAction.accessibilityLabel || 'Go back'}
-            >
+          {showBack && (
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.actionButton}>
+              <Ionicons name="chevron-back" size={28} color={colors.text} />
+            </TouchableOpacity>
+          )}
+          {!showBack && leftAction && (
+            <TouchableOpacity onPress={leftAction.onPress} style={styles.actionButton}>
               {leftAction.icon}
             </TouchableOpacity>
           )}
         </View>
 
+        {/* Title */}
         <View style={titleContainerStyle}>
           <Text style={titleStyle}>{title}</Text>
           {subtitle && <Text style={subtitleStyle}>{subtitle}</Text>}
         </View>
 
+        {/* Right Section */}
         <View style={actionStyle}>
-          {rightAction && !rightActions && (
-            <TouchableOpacity
-              onPress={rightAction.onPress}
-              style={styles.actionButton}
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel={rightAction.accessibilityLabel || 'Action'}
-            >
+          {validRightComponent}
+          {!validRightComponent && rightAction && !rightActions && (
+            <TouchableOpacity onPress={rightAction.onPress} style={styles.actionButton}>
               {rightAction.icon}
             </TouchableOpacity>
           )}
         </View>
 
+        {/* Right Actions Stack */}
         {rightActions && (
           <View style={rightStackStyle}>
             {rightActions.map((action, index) => (
-              <TouchableOpacity
-                key={index}
-                onPress={action.onPress}
-                style={styles.actionButton}
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel={action.accessibilityLabel || 'Action'}
-              >
+              <TouchableOpacity key={index} onPress={action.onPress} style={styles.actionButton}>
                 {action.icon}
               </TouchableOpacity>
             ))}

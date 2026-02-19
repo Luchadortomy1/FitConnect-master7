@@ -186,6 +186,117 @@ export const routinesApi = {
 
     return mapRoutineRow(data as RoutineRow, false);
   },
+
+  async addExerciseToDay(routineId: string, dayKey: WeekDay, exercise: DayExercise): Promise<WeeklyRoutine> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error('No user authenticated');
+    }
+
+    // Get current routine
+    const { data: routineData, error: fetchError } = await supabase
+      .from('routines')
+      .select('*')
+      .eq('id', routineId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching routine:', fetchError);
+      throw fetchError;
+    }
+
+    const routine = routineData as RoutineRow;
+    const content = routine.content || { days: [] };
+    
+    // Find or create the day
+    let dayIndex = (content.days as any[]).findIndex((d: any) => d.day === dayKey);
+    
+    if (dayIndex === -1) {
+      // Day doesn't exist, create it
+      dayIndex = (content.days as any[]).length;
+      (content.days as any[]).push({
+        id: `${routineId}-${dayKey}`,
+        day: dayKey,
+        name: `Entrenamiento ${dayKey}`,
+        exercises: [],
+        duration: 60,
+      });
+    }
+
+    // Add exercise to the day
+    const dayExercises = (content.days as any[])[dayIndex].exercises || [];
+    dayExercises.push({
+      id: exercise.id,
+      name: exercise.name,
+      muscle: exercise.muscle,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      weight: exercise.weight,
+      notes: exercise.notes,
+      equipment: exercise.equipment,
+    });
+
+    (content.days as any[])[dayIndex].exercises = dayExercises;
+
+    // Update routine in database
+    const { data: updatedData, error: updateError } = await supabase
+      .from('routines')
+      .update({ content })
+      .eq('id', routineId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating routine:', updateError);
+      throw updateError;
+    }
+
+    return mapRoutineRow(updatedData as RoutineRow, false);
+  },
+
+  async deleteExerciseFromDay(routineId: string, dayKey: WeekDay, exerciseId: string): Promise<WeeklyRoutine> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error('No user authenticated');
+    }
+
+    // Get current routine
+    const { data: routineData, error: fetchError } = await supabase
+      .from('routines')
+      .select('*')
+      .eq('id', routineId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching routine:', fetchError);
+      throw fetchError;
+    }
+
+    const routine = routineData as RoutineRow;
+    const content = routine.content || { days: [] };
+
+    // Find the day and remove the exercise
+    const dayIndex = (content.days as any[]).findIndex((d: any) => d.day === dayKey);
+    if (dayIndex !== -1) {
+      const day = (content.days as any[])[dayIndex];
+      day.exercises = (day.exercises || []).filter((ex: any) => ex.id !== exerciseId);
+    }
+
+    // Update routine in database
+    const { data: updatedData, error: updateError } = await supabase
+      .from('routines')
+      .update({ content })
+      .eq('id', routineId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating routine:', updateError);
+      throw updateError;
+    }
+
+    return mapRoutineRow(updatedData as RoutineRow, false);
+  },
 };
 
 export default routinesApi;

@@ -659,14 +659,6 @@ const ProfileScreen = () => {
                   </Text>
                 </View>
               </View>
-
-              {/* Info Message */}
-              <View style={[styles.infoMessage, { backgroundColor: colors.primary + '10' }]}>
-                <Ionicons name="information-circle" size={20} color={colors.primary} />
-                <Text style={[styles.infoMessageText, { color: colors.text }]}>
-                  Estos macros se actualizan automáticamente según tus datos personales, actividad y objetivo
-                </Text>
-              </View>
             </View>
           )}
 

@@ -169,6 +169,7 @@ export interface DayExercise {
   weight?: number;
   notes?: string;
   equipment?: string;
+  imageUrl?: string; // URL to exercise demonstration image
 }
 
 export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
