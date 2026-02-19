@@ -16,17 +16,42 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { WeeklyRoutine, WeekDay } from '@/types';
 import { routinesApi } from '@/api/routines';
-import { workoutTemplates, getTemplateById } from '@/utils/workoutTemplates';
+import { getTemplateById, getTemplatesByGoal } from '@/utils/workoutTemplates';
+import { useAuth } from '@/contexts/AuthContext';
+
+// Funciones helper para etiquetas
+const getGoalLabel = (goal: string): string => {
+  const labels: Record<string, string> = {
+    'lose_weight': 'Perder Peso',
+    'gain_muscle': 'Ganar Músculo',
+    'maintain': 'Mantener Forma',
+    'endurance': 'Resistencia'
+  };
+  return labels[goal] || goal;
+};
+
+const getDifficultyLabel = (difficulty: string): string => {
+  const labels: Record<string, string> = {
+    'beginner': 'Principiante',
+    'intermediate': 'Intermedio',
+    'advanced': 'Avanzado'
+  };
+  return labels[difficulty] || difficulty;
+};
 
 const CreateRoutineScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuth();
   
   const [routineName, setRoutineName] = useState('');
   const [routineDescription, setRoutineDescription] = useState('');
   const [selectedDays, setSelectedDays] = useState<Set<WeekDay>>(new Set());
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Obtener templates disponibles basados en el objetivo del usuario
+  const availableTemplates = user?.goal ? getTemplatesByGoal(user.goal) : [];
 
   const weekDays: { key: WeekDay; label: string; short: string }[] = [
     { key: 'monday', label: 'Lunes', short: 'L' },
@@ -209,46 +234,66 @@ const CreateRoutineScreen = () => {
         {/* Templates */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Plantillas Predefinidas
+            Rutinas Recomendadas para Ti
           </Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-            Selecciona una plantilla o crea tu rutina personalizada
-          </Text>
+          {user?.goal && (
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+              Rutinas diseñadas para tu objetivo: <Text style={{ fontWeight: '600', color: colors.primary }}>{getGoalLabel(user.goal)}</Text>
+            </Text>
+          )}
           
-          <View style={styles.templatesList}>
-            {workoutTemplates.map(template => (
-              <Card key={template.id} style={[
-                styles.templateCard,
-                selectedTemplateId === template.id && { borderWidth: 2, borderColor: colors.primary }
-              ]}>
-                <TouchableOpacity
-                  style={styles.templateContent}
-                  onPress={() => selectTemplate(template.id)}
-                >
-                  <View style={styles.templateInfo}>
-                    <Text style={[styles.templateName, { color: colors.text }]}>
-                      {template.name}
-                    </Text>
-                    <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>
-                      {template.description}
-                    </Text>
-                    <View style={styles.templateDays}>
-                      <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
-                      <Text style={[styles.templateDaysText, { color: colors.textSecondary }]}>
-                        {template.days.length} días por semana
+          {availableTemplates.length === 0 ? (
+            <Card style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
+              <Ionicons name="information-circle-outline" size={40} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                No hay rutinas disponibles para tu objetivo actual.
+              </Text>
+              <Text style={[{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }]}>
+                Por favor, actualiza tu objetivo en el perfil.
+              </Text>
+            </Card>
+          ) : (
+            <View style={styles.templatesList}>
+              {availableTemplates.map(template => (
+                <Card key={template.id} style={[
+                  styles.templateCard,
+                  selectedTemplateId === template.id && { borderWidth: 2, borderColor: colors.primary }
+                ]}>
+                  <TouchableOpacity
+                    style={styles.templateContent}
+                    onPress={() => selectTemplate(template.id)}
+                  >
+                    <View style={styles.templateInfo}>
+                      <Text style={[styles.templateName, { color: colors.text }]}>
+                        {template.name}
                       </Text>
+                      <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>
+                        {template.description}
+                      </Text>
+                      <View style={styles.templateDays}>
+                        <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+                        <Text style={[styles.templateDaysText, { color: colors.textSecondary }]}>
+                          {template.days.length} días por semana
+                        </Text>
+                      </View>
+                      <View style={styles.templateDays}>
+                        <Ionicons name="fitness-outline" size={16} color={colors.textSecondary} />
+                        <Text style={[styles.templateDaysText, { color: colors.textSecondary }]}>
+                          Nivel: {getDifficultyLabel(template.difficulty)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                  {selectedTemplateId === template.id && (
-                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-                  )}
-                  {selectedTemplateId !== template.id && (
-                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                  )}
-                </TouchableOpacity>
-              </Card>
-            ))}
-          </View>
+                    {selectedTemplateId === template.id && (
+                      <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                    )}
+                    {selectedTemplateId !== template.id && (
+                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                    )}
+                  </TouchableOpacity>
+                </Card>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Day Selection */}
@@ -457,6 +502,19 @@ const styles = StyleSheet.create({
   },
   createButton: {
     marginBottom: 0,
+  },
+  emptyCard: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    minHeight: 180,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
 

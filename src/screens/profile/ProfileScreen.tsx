@@ -208,6 +208,12 @@ const ProfileScreen = () => {
         <View style={styles.headerButtons}>
           <TouchableOpacity 
             style={styles.headerButton}
+            onPress={() => navigation.navigate('Progress' as never)}
+          >
+            <Ionicons name="trending-up-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.headerButton}
             onPress={() => navigation.navigate('Settings' as never)}
           >
             <Ionicons name="settings-outline" size={24} color={colors.text} />

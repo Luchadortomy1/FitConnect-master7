@@ -400,6 +400,30 @@ const HomeScreen = () => {
                 </TouchableOpacity>
               </Card>
             </View>
+
+            {/* Mi Progreso */}
+            <View style={styles.carouselPage}>
+              <Card key="progress" style={styles.carouselCard}>
+                <TouchableOpacity
+                  style={styles.carouselContent}
+                  onPress={() => navigation.navigate('ProfileStack' as never, { screen: 'Progress' })}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.carouselIcon, { backgroundColor: colors.error + '20' }]}>
+                    <Ionicons name="trending-up-outline" size={32} color={colors.error} />
+                  </View>
+                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                    Mi Progreso
+                  </Text>
+                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                    Visualiza tu historial y estadísticas
+                  </Text>
+                  <View style={[styles.carouselButton, { backgroundColor: colors.error }]}>
+                    <Text style={styles.carouselButtonText}>Ver Progreso</Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </View>
           </ScrollView>
         </View>
 

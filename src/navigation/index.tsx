@@ -13,6 +13,7 @@ import HomeScreen from '@/screens/HomeScreen';
 import WorkoutsScreen from '@/screens/workouts/WorkoutsScreen';
 import WorkoutDetailScreen from '@/screens/workouts/WorkoutDetailScreen';
 import DayWorkoutScreen from '@/screens/workouts/DayWorkoutScreen';
+import WorkoutSummaryScreen from '@/screens/workouts/WorkoutSummaryScreen';
 import CreateRoutineScreen from '@/screens/workouts/CreateRoutineScreen';
 import AddExerciseScreen from '@/screens/workouts/AddExerciseScreen';
 import StoreScreen from '@/screens/store/StoreScreen';
@@ -22,6 +23,7 @@ import GymsScreen from '@/screens/gyms/GymsScreen';
 import GymDetailScreen from '@/screens/gyms/GymDetailScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
 import SettingsScreen from '@/screens/profile/SettingsScreen';
+import ProgressScreen from '@/screens/profile/ProgressScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 
 // Icons (we'll use Ionicons from @expo/vector-icons)
@@ -50,6 +52,14 @@ export type WorkoutStackParamList = {
   WorkoutsList: undefined;
   WorkoutDetail: { workoutId: string };
   DayWorkout: { dayWorkout: any; dayName: string; routineId: string };
+  WorkoutSummary: {
+    dayName: string;
+    dayWorkout: any;
+    completedSets: Record<string, boolean[]>;
+    elapsedTime: number;
+    routineId: string;
+    dayKey: string;
+  };
   CreateRoutine: undefined;
   EditRoutine: { routineId: string };
   AddExercise: { dayWorkout: any; routineId: string };
@@ -97,7 +107,6 @@ const AuthNavigator = () => {
 
 // Workout Stack Navigator
 const WorkoutNavigator = () => {
-  const { colors } = useTheme();
   
   return (
     <WorkoutStack.Navigator
@@ -121,6 +130,11 @@ const WorkoutNavigator = () => {
         options={{ title: 'Day Workout' }}
       />
       <WorkoutStack.Screen 
+        name="WorkoutSummary" 
+        component={WorkoutSummaryScreen}
+        options={{ title: 'Workout Summary' }}
+      />
+      <WorkoutStack.Screen 
         name="CreateRoutine" 
         component={CreateRoutineScreen}
         options={{ title: 'Create Routine' }}
@@ -141,7 +155,6 @@ const WorkoutNavigator = () => {
 
 // Store Stack Navigator
 const StoreNavigator = () => {
-  const { colors } = useTheme();
   
   return (
     <StoreStack.Navigator
@@ -170,7 +183,6 @@ const StoreNavigator = () => {
 
 // Gym Stack Navigator
 const GymNavigator = () => {
-  const { colors } = useTheme();
   
   return (
     <GymStack.Navigator
@@ -194,7 +206,6 @@ const GymNavigator = () => {
 
 // Profile Stack Navigator
 const ProfileNavigator = () => {
-  const { colors } = useTheme();
   
   return (
     <ProfileStack.Navigator
@@ -206,6 +217,11 @@ const ProfileNavigator = () => {
         name="ProfileMain" 
         component={ProfileScreen}
         options={{ title: 'Profile' }}
+      />
+      <ProfileStack.Screen 
+        name="Progress" 
+        component={ProgressScreen}
+        options={{ title: 'Mi Progreso' }}
       />
       <ProfileStack.Screen 
         name="Settings" 
@@ -223,7 +239,7 @@ const ProfileNavigator = () => {
 
 // Main Tab Navigator
 const MainNavigator = () => {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   
   return (
     <MainTab.Navigator

@@ -10,24 +10,48 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useNavigation } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { WeeklyRoutine, DayWorkout, WeekDay } from '@/types';
 import { routinesApi } from '@/api/routines';
+import { workoutSessionsApi } from '@/api/workoutSessions';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
+
+// Helper para etiquetas
+const getGoalLabel = (goal: string): string => {
+  const labels: Record<string, string> = {
+    'lose_weight': 'Perder Peso',
+    'gain_muscle': 'Ganar Músculo',
+    'maintain': 'Mantener Forma',
+    'endurance': 'Resistencia'
+  };
+  return labels[goal] || goal;
+};
+
+const getGoalIcon = (goal: string): string => {
+  const icons: Record<string, string> = {
+    'lose_weight': 'flame-outline',
+    'gain_muscle': 'barbell-outline',
+    'maintain': 'checkmark-outline',
+    'endurance': 'heart-outline'
+  };
+  return icons[goal] || 'fitness-outline';
+};
 
 const WorkoutsScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [routines, setRoutines] = useState<WeeklyRoutine[]>([]);
   const [activeRoutine, setActiveRoutine] = useState<WeeklyRoutine | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [todaysSessions, setTodaysSessions] = useState<any[]>([]);
 
   const weekDays: { key: WeekDay; label: string; short: string }[] = [
     { key: 'monday', label: 'Lunes', short: 'L' },
@@ -47,6 +71,19 @@ const WorkoutsScreen = () => {
       ]);
       setRoutines(routinesData);
       setActiveRoutine(activeRoutineData);
+
+      // Cargar sesiones de hoy
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      try {
+        const sessions = await workoutSessionsApi.getSessions(1);
+        const todaysSessionsList = sessions.filter((s: any) => 
+          s.completed_at?.split('T')[0] === today
+        );
+        setTodaysSessions(todaysSessionsList);
+      } catch (error) {
+        console.warn('Error loading todays sessions:', error);
+        setTodaysSessions([]);
+      }
     } catch (error) {
       console.error('Error loading routines:', error);
     } finally {
@@ -97,15 +134,16 @@ const WorkoutsScreen = () => {
         { 
           text: 'Eliminar', 
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await routinesApi.deleteRoutine(routineId);
-              await loadData();
-              Alert.alert('Éxito', 'Rutina eliminada correctamente');
-            } catch (error) {
-              console.error('Error deleting routine:', error);
-              Alert.alert('Error', 'No se pudo eliminar la rutina');
-            }
+          onPress: () => {
+            routinesApi.deleteRoutine(routineId)
+              .then(() => {
+                loadData();
+                Alert.alert('Éxito', 'Rutina eliminada correctamente');
+              })
+              .catch((error) => {
+                console.error('Error deleting routine:', error);
+                Alert.alert('Error', 'No se pudo eliminar la rutina');
+              });
           }
         },
       ]
@@ -113,8 +151,22 @@ const WorkoutsScreen = () => {
   };
 
   const handleDayPress = (day: WeekDay, workout?: DayWorkout) => {
+    const today = getCurrentDay();
+    
     if (!activeRoutine) {
       Alert.alert('Sin rutina activa', 'Primero activa una rutina para poder entrenar');
+      return;
+    }
+
+    // Validar que solo se pueda entrenar en el día actual
+    if (day !== today) {
+      Alert.alert('Día no permitido', 'Solo puedes entrenar el día de hoy');
+      return;
+    }
+
+    // Validar que no se haya completado ya hoy
+    if (todaysSessions.length > 0) {
+      Alert.alert('Entrenamiento completado', 'Ya completaste el entrenamiento de hoy. Vuelve mañana');
       return;
     }
 
@@ -124,11 +176,6 @@ const WorkoutsScreen = () => {
         dayName: weekDays.find(d => d.key === day)?.label || day,
         routineId: activeRoutine.id,
         dayKey: day
-      } as never);
-    } else {
-      navigation.navigate('CreateDayWorkout' as never, { 
-        day, 
-        routineId: activeRoutine.id 
       } as never);
     }
   };
@@ -143,6 +190,18 @@ const WorkoutsScreen = () => {
     if (lowerName.includes('upper')) return 'chevron-up-outline';
     if (lowerName.includes('lower')) return 'chevron-down-outline';
     return 'fitness-outline';
+  };
+
+  const getButtonTitle = (): string => {
+    if (todaysSessions.length > 0) return '✓ Completado';
+    if (todayWorkout) return 'Empezar';
+    return 'Ver semana';
+  };
+
+  const getDaySubtitle = (isCompleted: boolean, workout?: DayWorkout): string => {
+    if (isCompleted) return '✓ Completado';
+    if (workout) return `${workout.exercises.length} ejercicios`;
+    return 'Libre';
   };
 
   const today = useMemo(() => getCurrentDay(), []);
@@ -182,6 +241,25 @@ const WorkoutsScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* User Goal Info */}
+        {user?.goal && (
+          <View style={styles.section}>
+            <Card style={[styles.goalCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary, borderWidth: 1 }]}>
+              <View style={styles.goalContent}>
+                <View style={[styles.goalIcon, { backgroundColor: colors.primary }]}>
+                  <Ionicons name={getGoalIcon(user.goal)} size={24} color="white" />
+                </View>
+                <View style={styles.goalInfo}>
+                  <Text style={[styles.goalLabel, { color: colors.textSecondary }]}>Tu Objetivo</Text>
+                  <Text style={[styles.goalValue, { color: colors.text }]}>
+                    {getGoalLabel(user.goal)}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </View>
+        )}
+
         {/* Active Routine / Today */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Tu día</Text>
@@ -226,22 +304,23 @@ const WorkoutsScreen = () => {
                       {todayWorkout ? todayWorkout.name : 'Sin sesión asignada'}
                     </Text>
                     {todayWorkout && (
-                      <Text style={[styles.todayMeta, { color: colors.textSecondary }]}> {todayWorkout.exercises.length} ejercicios · {todayWorkout.estimatedDuration || 60} min</Text>
+                      <Text style={[styles.todayMeta, { color: colors.textSecondary }]}>{todayWorkout.exercises.length} ejercicios · {todayWorkout.estimatedDuration || 60} min</Text>
+                    )}
+                    {todaysSessions.length > 0 && (
+                      <View style={[styles.completedBadge, { backgroundColor: colors.success + '20' }]}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={[styles.completedText, { color: colors.success }]}>Completado hoy</Text>
+                      </View>
                     )}
                   </View>
                 </View>
                 <Button
-                  title={todayWorkout ? 'Empezar' : 'Ver semana'}
+                  title={getButtonTitle()}
                   size="small"
+                  disabled={todaysSessions.length > 0}
                   onPress={() => {
-                    if (todayWorkout) {
+                    if (todayWorkout && todaysSessions.length === 0) {
                       handleDayPress(today, todayWorkout);
-                    } else {
-                      // Ir al primer día con contenido
-                      const firstDayWithWorkout = weekDays.find(d => activeRoutine.weeklyPlan[d.key]);
-                      if (firstDayWithWorkout) {
-                        handleDayPress(firstDayWithWorkout.key, activeRoutine.weeklyPlan[firstDayWithWorkout.key]);
-                      }
                     }
                   }}
                 />
@@ -270,6 +349,8 @@ const WorkoutsScreen = () => {
               {weekDays.map(day => {
                 const workout = activeRoutine.weeklyPlan[day.key];
                 const isToday = today === day.key;
+                const isCompleted = todaysSessions.length > 0 && isToday;
+                
                 return (
                   <TouchableOpacity
                     key={day.key}
@@ -277,13 +358,31 @@ const WorkoutsScreen = () => {
                       styles.dayPill,
                       { backgroundColor: colors.surface },
                       isToday && { borderColor: colors.primary, borderWidth: 1.5 },
-                      workout && { backgroundColor: colors.primary + '12' }
+                      workout && !isToday && { backgroundColor: colors.surface, opacity: 0.5 },
+                      workout && isToday && { backgroundColor: colors.primary + '12' },
+                      isCompleted && { backgroundColor: colors.success + '15' }
                     ]}
-                    onPress={() => handleDayPress(day.key, workout)}
+                    onPress={() => {
+                      if (isToday) {
+                        handleDayPress(day.key, workout);
+                      } else {
+                        Alert.alert('Día no permitido', 'Solo puedes entrenar el día de hoy');
+                      }
+                    }}
+                    disabled={!isToday}
                   >
-                    <Text style={[styles.dayLabel, { color: isToday ? colors.primary : colors.text }]}>{day.label}</Text>
-                    <Text style={[styles.daySub, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {workout ? `${workout.exercises.length} ejercicios` : 'Libre'}
+                    <View style={styles.dayPillHeader}>
+                      <Text style={[styles.dayLabel, { 
+                        color: isToday ? colors.primary : colors.text,
+                        opacity: isToday ? 1 : 0.5
+                      }]}>{day.label}</Text>
+                      {isCompleted && <Ionicons name="checkmark-circle" size={16} color={colors.success} />}
+                    </View>
+                    <Text style={[styles.daySub, { 
+                      color: colors.textSecondary,
+                      opacity: isToday ? 1 : 0.5
+                    }]} numberOfLines={2}>
+                      {getDaySubtitle(isCompleted, workout)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -466,6 +565,17 @@ const styles = StyleSheet.create({
   todayLabel: { fontSize: 12, fontWeight: '600' },
   todayName: { fontSize: 16, fontWeight: '700' },
   todayMeta: { fontSize: 13 },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  completedText: { fontSize: 12, fontWeight: '600' },
   weekRow: { paddingRight: 16, gap: 10 },
   dayPill: {
     width: 120,
@@ -474,6 +584,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     gap: 4,
+  },
+  dayPillHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   dayLabel: { fontSize: 14, fontWeight: '700' },
   daySub: { fontSize: 12 },
@@ -540,6 +655,38 @@ const styles = StyleSheet.create({
   cardFooterRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   linkText: { fontSize: 13, fontWeight: '700' },
   routinesList: {},
+  goalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginHorizontal: 8,
+  },
+  goalContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  goalIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  goalInfo: {
+    flex: 1,
+  },
+  goalLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  goalValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default WorkoutsScreen;

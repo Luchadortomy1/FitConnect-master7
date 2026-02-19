@@ -38,6 +38,9 @@ const DayWorkoutScreen = () => {
   const [completedSets, setCompletedSets] = useState<Record<string, boolean[]>>({});
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [tempExercise, setTempExercise] = useState<DayExercise | null>(null);
+  const [editingExercise, setEditingExercise] = useState<string | null>(null);
+  const [trainingStartTime, setTrainingStartTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
 
   useEffect(() => {
     // Initialize completed sets tracking
@@ -47,6 +50,19 @@ const DayWorkoutScreen = () => {
     });
     setCompletedSets(initialSets);
   }, [workout]);
+
+  // Timer effect - actualizar tiempo transcurrido cada segundo
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTrainingMode && trainingStartTime) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const time = Math.floor((now.getTime() - trainingStartTime.getTime()) / 1000);
+        setElapsedTime(time);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isTrainingMode, trainingStartTime]);
 
   // Reload routine data when screen is focused (after adding exercises)
   useFocusEffect(
@@ -69,31 +85,54 @@ const DayWorkoutScreen = () => {
 
   const handleStartTraining = () => {
     setIsTrainingMode(true);
+    setTrainingStartTime(new Date());
     Alert.alert(
       'Entrenamiento iniciado',
       'Marca cada serie como completada cuando termines'
     );
   };
 
-  const handleFinishTraining = () => {
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    }
+    return `${minutes}m ${secs}s`;
+  };
+
+  const getProgressStats = () => {
     const totalSets = workout.exercises.reduce((total: number, ex: DayExercise) => total + ex.sets, 0);
     const completedSetsCount = Object.values(completedSets).flat().filter(Boolean).length;
-    const completionRate = Math.round((completedSetsCount / totalSets) * 100);
+    const completionRate = totalSets > 0 ? Math.round((completedSetsCount / totalSets) * 100) : 0;
+    
+    const completedExercises = workout.exercises.filter((ex: DayExercise) => {
+      const sets = completedSets[ex.id] || [];
+      return sets.every((completed: boolean) => completed);
+    }).length;
 
-    Alert.alert(
-      'Entrenamiento completado',
-      `Has completado ${completedSetsCount}/${totalSets} series (${completionRate}%)`,
-      [
-        { text: 'Continuar entrenando', style: 'cancel' },
-        { 
-          text: 'Finalizar', 
-          onPress: () => {
-            setIsTrainingMode(false);
-            navigation.goBack();
-          }
-        }
-      ]
-    );
+    return {
+      totalSets,
+      completedSetsCount,
+      completionRate,
+      completedExercises,
+      totalExercises: workout.exercises.length
+    };
+  };
+
+  const handleFinishTraining = () => {
+    const stats = getProgressStats();
+
+    navigation.navigate('WorkoutSummary' as never, {
+      dayName,
+      dayWorkout: workout,
+      completedSets,
+      elapsedTime,
+      routineId,
+      dayKey
+    } as never);
   };
 
   const toggleSetCompleted = (exerciseId: string, setIndex: number) => {
@@ -323,7 +362,67 @@ const DayWorkoutScreen = () => {
             )}
           </Card>
         </View>
+        {/* Training Progress - Only in Training Mode */}
+        {isTrainingMode && (
+          <View style={styles.section}>
+            <Card style={[styles.progressCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary, borderWidth: 1 }]}>
+              <View style={styles.progressHeader}>
+                <View>
+                  <Text style={[styles.progressTitle, { color: colors.text }]}>
+                    Progreso del Entrenamiento
+                  </Text>
+                  <Text style={[styles.progressSubtitle, { color: colors.textSecondary }]}>
+                    {getProgressStats().completedSetsCount} / {getProgressStats().totalSets} series completadas
+                  </Text>
+                </View>
+                <View style={[styles.timerBadge, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="time" size={14} color="white" />
+                  <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+                </View>
+              </View>
 
+              {/* Progress Bar */}
+              <View style={[styles.progressBarContainer, { backgroundColor: colors.surface }]}>
+                <View 
+                  style={[
+                    styles.progressFill,
+                    { 
+                      width: `${getProgressStats().completionRate}%`,
+                      backgroundColor: getProgressStats().completionRate === 100 ? colors.success : colors.primary
+                    }
+                  ]} 
+                />
+              </View>
+
+              <View style={styles.progressStats}>
+                <View style={styles.progressStat}>
+                  <Text style={[styles.progressStatValue, { color: colors.text }]}>
+                    {getProgressStats().completedExercises}/{getProgressStats().totalExercises}
+                  </Text>
+                  <Text style={[styles.progressStatLabel, { color: colors.textSecondary }]}>
+                    Ejercicios
+                  </Text>
+                </View>
+                <View style={styles.progressStat}>
+                  <Text style={[styles.progressStatValue, { color: colors.text }]}>
+                    {getProgressStats().completionRate}%
+                  </Text>
+                  <Text style={[styles.progressStatLabel, { color: colors.textSecondary }]}>
+                    Completado
+                  </Text>
+                </View>
+                <View style={styles.progressStat}>
+                  <Text style={[styles.progressStatValue, { color: colors.text }]}>
+                    {Math.max(0, getProgressStats().totalSets - getProgressStats().completedSetsCount)}
+                  </Text>
+                  <Text style={[styles.progressStatLabel, { color: colors.textSecondary }]}>
+                    Pendientes
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </View>
+        )}
         {/* Exercises */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -642,6 +741,62 @@ const styles = StyleSheet.create({
   setNumber: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  progressCard: {
+    paddingVertical: 16,
+    marginBottom: 8,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  progressTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  progressSubtitle: {
+    fontSize: 13,
+  },
+  timerBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timerText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  progressBarContainer: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  progressStat: {
+    alignItems: 'center',
+  },
+  progressStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  progressStatLabel: {
+    fontSize: 11,
   },
   emptyState: {
     alignItems: 'center',
