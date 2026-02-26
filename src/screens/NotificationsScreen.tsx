@@ -6,18 +6,33 @@ import {
   FlatList,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
-import { useNavigation } from '@react-navigation/native';
 import { Notification } from '@/types';
 import { gymsApi } from '@/api';
 
 const NotificationsScreen = () => {
   const { colors } = useTheme();
-  const { notifications, markNotificationAsRead } = useApp();
+  const { notifications, markNotificationAsRead, deleteNotification, loadNotifications } = useApp();
   const navigation = useNavigation();
+
+  // Load notifications when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadData = async () => {
+        try {
+          await loadNotifications();
+        } catch (error) {
+          console.error('Error loading notifications:', error);
+        }
+      };
+      loadData();
+    }, [loadNotifications])
+  );
 
   const handleNotificationPress = async (notification: Notification) => {
     // Mark as read
@@ -25,22 +40,56 @@ const NotificationsScreen = () => {
       await markNotificationAsRead(notification.id);
     }
 
-    // Navigate if subscription notification
-    if (notification.type === 'subscription' && notification.data?.gym_id) {
-      try {
+    try {
+      // Get root navigation
+      const rootNav = navigation.getParent();
+      if (!rootNav) return;
+
+      // Navigate based on notification type
+      if ((notification.type === 'subscription' || notification.type === 'general') && notification.data?.gym_id) {
+        // Navigate to gym detail
         const gym = await gymsApi.getGym(notification.data.gym_id);
         if (gym) {
-          // Navigate to parent (RootStack) first, then to Gyms
-          const parentNav = navigation.getParent();
-          parentNav?.navigate('Main' as never, {
+          rootNav.navigate('Main' as never, {
             screen: 'Gyms',
-            params: { screen: 'GymDetail', params: { gym } }
+            params: {
+              screen: 'GymDetail',
+              params: { gym },
+              initial: false
+            }
           } as never);
         }
-      } catch (error) {
-        console.error('Error loading gym:', error);
+      } else if (notification.type === 'supplement' && notification.data?.product_id) {
+        // Navigate to product detail
+        rootNav.navigate('Main' as never, {
+          screen: 'Store',
+          params: {
+            screen: 'ProductDetail',
+            params: { productId: notification.data.product_id },
+            initial: false
+          }
+        } as never);
       }
+    } catch (error) {
+      console.error('Error navigating from notification:', error);
     }
+  };
+
+  const handleLongPressNotification = (notification: Notification) => {
+    Alert.alert(
+      'Eliminar notificación',
+      '¿Deseas eliminar esta notificación?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            deleteNotification(notification.id);
+          },
+        },
+      ]
+    );
   };
 
   const getNotificationIcon = (type: string) => {
@@ -106,6 +155,7 @@ const NotificationsScreen = () => {
           },
         ]}
         onPress={() => handleNotificationPress(item)}
+        onLongPress={() => handleLongPressNotification(item)}
       >
         <View
           style={[

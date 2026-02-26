@@ -160,6 +160,8 @@ const StoreNavigator = () => {
     <StoreStack.Navigator
       screenOptions={{
         headerShown: false,
+        // Preserve state so we don't lose the stack when navigating from other tabs
+        preserveState: true,
       }}
     >
       <StoreStack.Screen 
@@ -188,6 +190,8 @@ const GymNavigator = () => {
     <GymStack.Navigator
       screenOptions={{
         headerShown: false,
+        // Preserve state so we don't lose the stack when navigating from other tabs
+        preserveState: true,
       }}
     >
       <GymStack.Screen 
@@ -286,6 +290,20 @@ const MainNavigator = () => {
           paddingBottom: 12,
         },
         headerShown: false,
+      })}
+      listeners={({ navigation }) => ({
+        tabPress: (e) => {
+          // Get the current route and target route
+          const state = navigation.getState();
+          const srcRoute = state.routes[state.index];
+          const destRoute = e.target?.split('-')[0];
+          
+          // If the tab is already focused, don't reset
+          // This allows normal navigation within the tab
+          if (srcRoute?.name === destRoute) {
+            return;
+          }
+        }
       })}
     >
       <MainTab.Screen name="Home" component={HomeScreen} />

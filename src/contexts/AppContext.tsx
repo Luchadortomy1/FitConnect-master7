@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
 import { CartItem, NutritionEntry, WorkoutSession, Notification } from '@/types';
 import { notificationsApi } from '@/api/notifications';
 
@@ -24,7 +24,8 @@ interface AppContextType {
   // Notifications
   notifications: Notification[];
   markNotificationAsRead: (notificationId: string) => Promise<void>;
-  addNotification: (notification: Omit<Notification, 'id'>) => Promise<Notification | null>;
+  addNotification: (notification: Notification) => Promise<Notification | null>;
+  deleteNotification: (notificationId: string) => Promise<void>;
   loadNotifications: () => Promise<void>;
 }
 
@@ -47,20 +48,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   });
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  // Load notifications from database on mount
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const storedNotifications = await notificationsApi.getUserNotifications();
-        setNotifications(storedNotifications);
-      } catch (error) {
-        console.error('Error loading notifications on mount:', error);
-      }
-    };
-
-    loadNotifications();
-  }, []);
 
   // Cart functions
   const addToCart = (item: CartItem) => {
@@ -180,9 +167,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const addNotification = async (notification: Omit<Notification, 'id'>) => {
+  const addNotification = async (notification: Notification) => {
     // First check if notification already exists (prevent duplicates)
-    const exists = notifications.some(n => n.id === notification.title); // Simple check using title
+    const exists = notifications.some(n => n.id === notification.id);
     if (exists) {
       return null;
     }
@@ -200,6 +187,20 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error adding notification:', error);
       return null;
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    // Update local state immediately for better UX
+    setNotifications(prev =>
+      prev.filter(notification => notification.id !== notificationId)
+    );
+
+    // Delete from database
+    try {
+      await notificationsApi.deleteNotification(notificationId);
+    } catch (error) {
+      console.error('Error deleting notification in database:', error);
     }
   };
 
@@ -228,6 +229,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     notifications,
     markNotificationAsRead,
     addNotification,
+    deleteNotification,
     loadNotifications,
   }), [cart, cartTotal, todayNutrition, activeWorkout, notifications]);
 

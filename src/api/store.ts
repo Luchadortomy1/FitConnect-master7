@@ -333,4 +333,60 @@ export const storeApi = {
 
     return mockPurchases;
   },
+
+  /**
+   * Actualizar el stock de un producto después de una compra
+   */
+  async updateProductStock(productId: string, quantityDecrease: number): Promise<boolean> {
+    try {
+      // Primero obtener el stock actual
+      const { data: product, error: fetchError } = await supabase
+        .from('products')
+        .select('stock')
+        .eq('id', productId)
+        .single();
+
+      if (fetchError || !product) {
+        console.error('Error fetching product stock:', fetchError);
+        return false;
+      }
+
+      const currentStock = product.stock || 0;
+      const newStock = Math.max(0, currentStock - quantityDecrease);
+
+      // Actualizar el stock
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({ stock: newStock })
+        .eq('id', productId);
+
+      if (updateError) {
+        console.error('Error updating product stock:', updateError);
+        return false;
+      }
+
+      console.log(`Stock actualizado para producto ${productId}: ${currentStock} -> ${newStock}`);
+      return true;
+    } catch (error) {
+      console.error('Error in updateProductStock:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Actualizar stock para múltiples productos
+   */
+  async updateMultipleProductsStock(items: Array<{ productId: string; quantity: number }>): Promise<boolean> {
+    try {
+      const promises = items.map(item => 
+        this.updateProductStock(item.productId, item.quantity)
+      );
+
+      const results = await Promise.all(promises);
+      return results.every(result => result === true);
+    } catch (error) {
+      console.error('Error updating multiple products stock:', error);
+      return false;
+    }
+  },
 };

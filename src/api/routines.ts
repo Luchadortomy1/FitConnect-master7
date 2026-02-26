@@ -83,21 +83,24 @@ const fetchRoutines = async (): Promise<WeeklyRoutine[]> => {
 };
 
 const setActiveFlag = async (routineId: string) => {
-  // Intentar usar columna is_active si existe; si no, no fallar fuerte
-  const { error } = await supabase.rpc('set_active_routine', { routine_id: routineId }).catch(() => ({ error: null as any }));
-  if (error && error.code !== '42883') {
-    // 42883 = función no existe; en ese caso seguimos con fallback
-    console.warn('RPC set_active_routine no disponible, intentando update directo');
+  // Desactivar todas las otras rutinas
+  const { error: deactivateError } = await supabase
+    .from('routines')
+    .update({ is_active: false })
+    .neq('id', routineId);
+  
+  if (deactivateError) {
+    console.error('Error deactivating other routines:', deactivateError);
   }
 
-  const { error: updateError } = await supabase.from('routines').update({ is_active: false }).neq('id', routineId);
-  if (updateError && updateError.code === '42703') {
-    // Columna no existe, ignorar
-    return;
-  }
-
-  if (!updateError) {
-    await supabase.from('routines').update({ is_active: true }).eq('id', routineId);
+  // Activar la rutina seleccionada
+  const { error: activateError } = await supabase
+    .from('routines')
+    .update({ is_active: true })
+    .eq('id', routineId);
+  
+  if (activateError) {
+    console.error('Error activating routine:', activateError);
   }
 };
 

@@ -1,4 +1,5 @@
 import { supabase } from './auth';
+import { storeApi } from './store';
 
 export interface Order {
   id: string;
@@ -89,6 +90,7 @@ export const ordersApi = {
       // Crear los order items
       const orderItems = items.map(item => ({
         order_id: orderId,
+        user_id: userId,
         product_id: item.productId,
         quantity: item.quantity,
         price_at_purchase: item.price,
@@ -138,18 +140,45 @@ export const ordersApi = {
   },
 
   /**
-   * Confirmar pago de orden (cambiar status a paid)
+   * Confirmar pago de orden (cambiar status a paid y actualizar stock)
    */
   async confirmOrderPayment(orderId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      // Obtener los items de la orden para actualizar el stock
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('product_id, quantity')
+        .eq('order_id', orderId);
+
+      if (itemsError) {
+        console.error('Error fetching order items:', itemsError);
+        return false;
+      }
+
+      // Actualizar el estado de la orden a paid
+      const { error: updateError } = await supabase
         .from('orders')
         .update({ status: 'paid' })
         .eq('id', orderId);
 
-      if (error) {
-        console.error('Error confirming order payment:', error);
+      if (updateError) {
+        console.error('Error confirming order payment:', updateError);
         return false;
+      }
+
+      // Actualizar el stock de cada producto
+      if (orderItems && orderItems.length > 0) {
+        const stockUpdates = orderItems.map(item => ({
+          productId: item.product_id,
+          quantity: item.quantity,
+        }));
+
+        const stockUpdateSuccess = await storeApi.updateMultipleProductsStock(stockUpdates);
+        
+        if (!stockUpdateSuccess) {
+          console.warn('Warning: Some product stocks could not be updated for order', orderId);
+          // No retornamos false aquí porque la orden ya fue pagada
+        }
       }
 
       return true;

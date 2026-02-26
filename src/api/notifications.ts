@@ -44,7 +44,7 @@ export const notificationsApi = {
   /**
    * Create a new notification for the current user
    */
-  async createNotification(notification: Omit<Notification, 'id'>): Promise<Notification | null> {
+  async createNotification(notification: Notification): Promise<Notification | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -57,6 +57,7 @@ export const notificationsApi = {
         .from('notifications')
         .insert([
           {
+            id: notification.id,
             user_id: user.id,
             title: notification.title,
             message: notification.message,
