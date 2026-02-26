@@ -128,10 +128,12 @@ const CartScreen = () => {
       clearCart();
 
       // Agregar notificación de compra exitosa
-      addNotification({
+      await addNotification({
         title: '¡Compra completada!',
         message: `Tu orden por $${cartTotal.toFixed(2)} fue procesada exitosamente`,
         type: 'order',
+        date: new Date().toISOString(),
+        read: false,
       });
 
       Alert.alert('Éxito', 'Tu compra se completó correctamente', [

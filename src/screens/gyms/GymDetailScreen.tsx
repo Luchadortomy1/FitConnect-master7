@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useApp } from '@/contexts/AppContext';
 import { gymsApi, userSubscriptionsApi } from '@/api';
 import { StripePaymentSheet } from '@/components/StripePaymentSheet';
 import { Gym } from '@/types';
@@ -26,6 +27,7 @@ const GymDetailScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
+  const { addNotification } = useApp();
   const { gym: initialGym } = route.params as { gym: Gym };
   
   const [gym, setGym] = useState<Gym>(initialGym);
@@ -164,6 +166,15 @@ const GymDetailScreen = () => {
         const result = await userSubscriptionsApi.renewSubscription(subscription.id, paymentIntentId);
         if (result) {
           Alert.alert('Éxito', '¡Tu suscripción ha sido renovada correctamente!');
+          await addNotification({
+            id: `renewal-success-${subscription.id}`,
+            title: '✅ Suscripción renovada',
+            message: `Tu suscripción a ${initialGym.name} se renovó exitosamente`,
+            date: new Date().toISOString(),
+            read: false,
+            type: 'subscription',
+            data: { gym_id: initialGym.id, subscription_id: subscription.id },
+          });
           setIsUserSubscriptionExpired(false);
           await loadUserSubscriptions();
         } else {
@@ -276,6 +287,15 @@ const GymDetailScreen = () => {
             onPress: () => navigation.goBack(),
           },
         ]);
+        await addNotification({
+          id: `subscription-success-${initialGym.id}-${Date.now()}`,
+          title: '✅ Suscripción activa',
+          message: `Te has suscrito a ${initialGym.name} correctamente`,
+          date: new Date().toISOString(),
+          read: false,
+          type: 'subscription',
+          data: { gym_id: initialGym.id },
+        });
       } else {
         Alert.alert('Error', 'No se pudo completar la suscripción');
       }

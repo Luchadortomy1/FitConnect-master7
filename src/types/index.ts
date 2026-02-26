@@ -131,7 +131,8 @@ export interface Notification {
   message: string;
   date: string;
   read: boolean;
-  type: 'workout' | 'supplement' | 'general' | 'achievement';
+  type: 'workout' | 'supplement' | 'general' | 'achievement' | 'subscription';
+  data?: Record<string, any>;
 }
 
 export interface WeeklyRoutine {

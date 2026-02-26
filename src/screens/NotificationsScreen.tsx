@@ -10,11 +10,38 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
+import { useNavigation } from '@react-navigation/native';
 import { Notification } from '@/types';
+import { gymsApi } from '@/api';
 
 const NotificationsScreen = () => {
   const { colors } = useTheme();
   const { notifications, markNotificationAsRead } = useApp();
+  const navigation = useNavigation();
+
+  const handleNotificationPress = async (notification: Notification) => {
+    // Mark as read
+    if (!notification.read) {
+      await markNotificationAsRead(notification.id);
+    }
+
+    // Navigate if subscription notification
+    if (notification.type === 'subscription' && notification.data?.gym_id) {
+      try {
+        const gym = await gymsApi.getGym(notification.data.gym_id);
+        if (gym) {
+          // Navigate to parent (RootStack) first, then to Gyms
+          const parentNav = navigation.getParent();
+          parentNav?.navigate('Main' as never, {
+            screen: 'Gyms',
+            params: { screen: 'GymDetail', params: { gym } }
+          } as never);
+        }
+      } catch (error) {
+        console.error('Error loading gym:', error);
+      }
+    }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -42,7 +69,7 @@ const NotificationsScreen = () => {
       case 'achievement':
         return '#FFD93D';
       case 'subscription':
-        return '#95E1D3';
+        return '#A78BFA';
       case 'order':
         return '#A8E6CF';
       default:
@@ -78,7 +105,7 @@ const NotificationsScreen = () => {
             borderLeftColor: iconColor,
           },
         ]}
-        onPress={() => !item.read && markNotificationAsRead(item.id)}
+        onPress={() => handleNotificationPress(item)}
       >
         <View
           style={[

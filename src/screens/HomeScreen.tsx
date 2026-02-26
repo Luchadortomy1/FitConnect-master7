@@ -20,6 +20,7 @@ import { Spacing } from '@/constants/theme';
 import { DayWorkout, Supplement } from '@/types';
 import { routinesApi, storeApi, userSubscriptionsApi, gymsApi } from '@/api';
 import { useApp } from '@/contexts/AppContext';
+import { checkSubscriptionNotifications } from '@/utils/subscriptionNotifications';
 
 const { width } = Dimensions.get('window');
 const CAROUSEL_CARD_HEIGHT = 320;
@@ -41,7 +42,7 @@ const HomeScreen = () => {
   const { colors } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation();
-  const { notifications } = useApp();
+  const { notifications, addNotification } = useApp();
   
   const [todayWorkout, setTodayWorkout] = useState<DayWorkout | null>(null);
   const [recommendedSupplements, setRecommendedSupplements] = useState<Supplement[]>([]);
@@ -52,7 +53,27 @@ const HomeScreen = () => {
   // Calcular notificaciones sin leer
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const loadDashboardData = async () => {
+  // Función para chequear y agregar notificaciones de expiración
+  const checkAndAddExpirationNotifications = async () => {
+    try {
+      const subscriptions = await userSubscriptionsApi.getUserAllSubscriptions();
+      const subscriptionNotifications = checkSubscriptionNotifications(subscriptions);
+      
+      for (const notification of subscriptionNotifications) {
+        // Solo agregar si no existe una notificación con el mismo ID
+        const existingNotif = notifications.find(
+          n => n.id === notification.id
+        );
+        if (!existingNotif) {
+          await addNotification(notification);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking expiration notifications:', error);
+    }
+  };
+
+  const loadDashboardData = async (includeNotifications: boolean = true) => {
     try {
       // Primero cargar todas las suscripciones (activas y expiradas)
       const subscriptions = await userSubscriptionsApi.getUserAllSubscriptions();
@@ -176,12 +197,16 @@ const HomeScreen = () => {
 
   useEffect(() => {
     loadDashboardData();
+    // Chequear notificaciones de expiración cada vez que carga el home
+    checkAndAddExpirationNotifications();
   }, [user]);
 
-  // Recargar datos cuando la pantalla se enfoca (después de crear rutina)
+  // Recargar datos cuando la pantalla se enfoca - y chequear notificaciones de expiración
   useFocusEffect(
     React.useCallback(() => {
-      loadDashboardData();
+      loadDashboardData(false);
+      // Chequear notificaciones de expiración cuando vuelve a esta pantalla
+      checkAndAddExpirationNotifications();
     }, [])
   );
 
@@ -230,7 +255,11 @@ const HomeScreen = () => {
     try {
       const gym = await gymsApi.getGym(gymId);
       if (gym) {
-        navigation.navigate('Gyms' as never, { screen: 'GymDetail', params: { gym } } as never);
+        // Usar reset para navegar a la pestaña Gyms y luego a GymDetail
+        navigation.navigate('Gyms' as never, { 
+          screen: 'GymDetail', 
+          params: { gym } 
+        } as never);
       } else {
         Alert.alert('Error', 'No se pudo cargar la información del gimnasio');
       }

@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, ReactNode, useEffect } from 'react';
 import { CartItem, NutritionEntry, WorkoutSession, Notification } from '@/types';
+import { notificationsApi } from '@/api/notifications';
 
 interface AppContextType {
   // Cart
@@ -22,8 +23,9 @@ interface AppContextType {
   
   // Notifications
   notifications: Notification[];
-  markNotificationAsRead: (notificationId: string) => void;
-  addNotification: (notification: Omit<Notification, 'id'>) => void;
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  addNotification: (notification: Omit<Notification, 'id'>) => Promise<Notification | null>;
+  loadNotifications: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -44,48 +46,21 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     water: 2.1,
   });
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: '¡Compra completada!',
-      message: 'Tu orden de suplementos fue entregada exitosamente',
-      date: new Date().toISOString(),
-      read: false,
-      type: 'order',
-    },
-    {
-      id: '2',
-      title: 'Recordatorio de entrenamiento',
-      message: 'No olvides tu rutina de pecho de hoy a las 6 PM',
-      date: new Date(Date.now() - 1800000).toISOString(),
-      read: false,
-      type: 'workout',
-    },
-    {
-      id: '3',
-      title: '¡Nuevo suplemento disponible!',
-      message: 'Protein Blend Premium 2kg - 20% descuento solo esta semana',
-      date: new Date(Date.now() - 3600000).toISOString(),
-      read: true,
-      type: 'supplement',
-    },
-    {
-      id: '4',
-      title: 'Suscripción renovada',
-      message: 'Tu suscripción Premium fue renovada por 30 días',
-      date: new Date(Date.now() - 86400000).toISOString(),
-      read: true,
-      type: 'subscription',
-    },
-    {
-      id: '5',
-      title: '¡Logro desbloqueado!',
-      message: 'Completaste 50 entrenamientos - ¡Campeón de consistencia!',
-      date: new Date(Date.now() - 172800000).toISOString(),
-      read: true,
-      type: 'achievement',
-    },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Load notifications from database on mount
+  useEffect(() => {
+    const loadNotifications = async () => {
+      try {
+        const storedNotifications = await notificationsApi.getUserNotifications();
+        setNotifications(storedNotifications);
+      } catch (error) {
+        console.error('Error loading notifications on mount:', error);
+      }
+    };
+
+    loadNotifications();
+  }, []);
 
   // Cart functions
   const addToCart = (item: CartItem) => {
@@ -187,7 +162,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   // Notification functions
-  const markNotificationAsRead = (notificationId: string) => {
+  const markNotificationAsRead = async (notificationId: string) => {
+    // Update local state immediately for better UX
     setNotifications(prev =>
       prev.map(notification =>
         notification.id === notificationId
@@ -195,14 +171,45 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           : notification
       )
     );
+
+    // Save to database
+    try {
+      await notificationsApi.markAsRead(notificationId);
+    } catch (error) {
+      console.error('Error marking notification as read in database:', error);
+    }
   };
 
-  const addNotification = (notification: Omit<Notification, 'id'>) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: Date.now().toString(),
-    };
-    setNotifications(prev => [newNotification, ...prev]);
+  const addNotification = async (notification: Omit<Notification, 'id'>) => {
+    // First check if notification already exists (prevent duplicates)
+    const exists = notifications.some(n => n.id === notification.title); // Simple check using title
+    if (exists) {
+      return null;
+    }
+
+    // Save to database first
+    try {
+      const savedNotification = await notificationsApi.createNotification(notification);
+      
+      if (savedNotification) {
+        // Update local state with database response
+        setNotifications(prev => [savedNotification, ...prev]);
+        return savedNotification;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error adding notification:', error);
+      return null;
+    }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const storedNotifications = await notificationsApi.getUserNotifications();
+      setNotifications(storedNotifications);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
   };
 
   const value: AppContextType = useMemo(() => ({
@@ -221,6 +228,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     notifications,
     markNotificationAsRead,
     addNotification,
+    loadNotifications,
   }), [cart, cartTotal, todayNutrition, activeWorkout, notifications]);
 
   return (

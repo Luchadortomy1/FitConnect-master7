@@ -7,3 +7,4 @@ export { routinesApi } from './routines';
 export { userSubscriptionsApi } from './userSubscriptions';
 export { ordersApi } from './orders';
 export { workoutSessionsApi } from './workoutSessions';
+export { notificationsApi } from './notifications';
