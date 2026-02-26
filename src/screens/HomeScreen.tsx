@@ -8,17 +8,17 @@ import {
   RefreshControl,
   Dimensions,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigation } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Spacing } from '@/constants/theme';
-import { DayWorkout, Supplement, WeeklyRoutine, Gym } from '@/types';
-import { routinesApi, storeApi, userSubscriptionsApi } from '@/api';
+import { DayWorkout, Supplement } from '@/types';
+import { routinesApi, storeApi, userSubscriptionsApi, gymsApi } from '@/api';
 import { useApp } from '@/contexts/AppContext';
 
 const { width } = Dimensions.get('window');
@@ -28,6 +28,7 @@ const CAROUSEL_CARD_WIDTH = width - 48; // leave margin so it doesn't touch edge
 
 interface GymSubscription {
   id: string;
+  gymId: string;
   gymName: string;
   planType: string;
   startDate: string;
@@ -38,57 +39,64 @@ interface GymSubscription {
 
 const HomeScreen = () => {
   const { colors } = useTheme();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigation = useNavigation();
   const { notifications } = useApp();
   
   const [todayWorkout, setTodayWorkout] = useState<DayWorkout | null>(null);
   const [recommendedSupplements, setRecommendedSupplements] = useState<Supplement[]>([]);
-  const [gymSubscription, setGymSubscription] = useState<GymSubscription | null>(null);
-  const [activeSubscription, setActiveSubscription] = useState<any>(null);
-  const [routines, setRoutines] = useState<WeeklyRoutine[]>([]);
+  const [gymSubscriptions, setGymSubscriptions] = useState<GymSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Calcular notificaciones sin leer
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Mock gym subscription data
-  // TODO: En el futuro, cargar suscripción actual del usuario desde la BD
-  // Por ahora, si el usuario no está suscrito a ningún gym, será null
-
   const loadDashboardData = async () => {
     try {
-      // Primero cargar suscripción
-      const subscription = await userSubscriptionsApi.getUserActiveSubscription();
+      // Primero cargar todas las suscripciones (activas y expiradas)
+      const subscriptions = await userSubscriptionsApi.getUserAllSubscriptions();
+      const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
       
       // Cargar otros datos
-      const [workout, supplements, allRoutines] = await Promise.all([
+      const [workout, supplements] = await Promise.all([
         routinesApi.getTodayWorkout(),
-        subscription?.gym_id ? getRecommendedSupplements(subscription.gym_id) : Promise.resolve([]),
-        routinesApi.getRoutines(),
+        activeSubscriptions.length > 0 ? getRecommendedSupplements(activeSubscriptions) : Promise.resolve([]),
       ]);
       
       setTodayWorkout(workout);
-      // Solo mostrar suplementos si hay suscripción
-      setRecommendedSupplements(subscription ? supplements : []);
-      setRoutines(allRoutines);
-      setActiveSubscription(subscription);
-      
-      // Mapear suscripción a GymSubscription
-      if (subscription) {
-        setGymSubscription({
-          id: subscription.id,
-          gymName: subscription.gym_name || 'Gimnasio',
-          planType: subscription.plan_name || 'Plan',
-          startDate: subscription.start_date,
-          endDate: subscription.end_date,
-          price: subscription.plan_price || 0,
-          status: 'active',
+      // Mapear todas las suscripciones a GymSubscription
+      let mappedSubscriptions: GymSubscription[] = [];
+      if (subscriptions.length > 0) {
+        mappedSubscriptions = subscriptions.map(subscription => {
+          // Determinar estado basado en status de BD
+          let status: 'active' | 'expired' | 'expiring_soon' = 'active';
+          if (subscription.status === 'expired') {
+            status = 'expired';
+          } else if (subscription.status === 'active') {
+            // Verificar si está por expirar en los próximos 7 días
+            const daysUntilExpiry = getDaysUntilExpiration(subscription.end_date);
+            if (daysUntilExpiry <= 7 && daysUntilExpiry > 0) {
+              status = 'expiring_soon';
+            }
+          }
+          
+          return {
+            id: subscription.id,
+            gymId: subscription.gym_id || '',
+            gymName: subscription.gym_name || 'Gimnasio',
+            planType: subscription.plan_name || 'Plan',
+            startDate: subscription.start_date,
+            endDate: subscription.end_date,
+            price: subscription.plan_price || 0,
+            status,
+          };
         });
-      } else {
-        setGymSubscription(null);
       }
+      
+      // Solo mostrar suplementos si hay suscripción activa
+      setRecommendedSupplements(activeSubscriptions.length > 0 ? supplements : []);
+      setGymSubscriptions(mappedSubscriptions);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -96,10 +104,19 @@ const HomeScreen = () => {
     }
   };
 
-  const getRecommendedSupplements = async (gymId: string): Promise<Supplement[]> => {
+  const getRecommendedSupplements = async (subscriptions: any[]): Promise<Supplement[]> => {
     try {
-      // Solo obtener suplementos del gym al que está suscrito
-      const allSupplements = await storeApi.getSupplementsByGym(gymId);
+      // Obtener gym IDs de todas las suscripciones
+      const gymIds = subscriptions
+        .map(sub => sub.gym_id)
+        .filter((id): id is string => Boolean(id));
+      
+      if (gymIds.length === 0) {
+        return [];
+      }
+
+      // Obtener suplementos de todos los gyms
+      const allSupplements = await storeApi.getSupplementsByGyms(gymIds);
       
       if (allSupplements.length === 0) {
         return [];
@@ -200,16 +217,27 @@ const HomeScreen = () => {
     }
   };
 
-  const getMuscleGroupIcon = (workoutName: string) => {
-    const name = workoutName.toLowerCase();
-    if (name.includes('pecho') || name.includes('push')) return 'body-outline' as const;
-    if (name.includes('espalda') || name.includes('pull')) return 'chevron-back-outline' as const;
-    if (name.includes('pierna') || name.includes('leg')) return 'walk-outline' as const;
-    if (name.includes('hombro')) return 'triangle-outline' as const;
-    if (name.includes('brazo') || name.includes('arm')) return 'hand-right-outline' as const;
-    if (name.includes('upper')) return 'chevron-up-outline' as const;
-    if (name.includes('lower')) return 'chevron-down-outline' as const;
-    return 'fitness-outline' as const;
+  const getSubscriptionStatusText = (status: string): string => {
+    switch (status) {
+      case 'expired': return 'Expirada';
+      case 'expiring_soon': return 'Por vencer';
+      case 'active': return 'Activa';
+      default: return 'Activa';
+    }
+  };
+
+  const handleGymDetailNavigation = async (gymId: string) => {
+    try {
+      const gym = await gymsApi.getGym(gymId);
+      if (gym) {
+        navigation.navigate('Gyms' as never, { screen: 'GymDetail', params: { gym } } as never);
+      } else {
+        Alert.alert('Error', 'No se pudo cargar la información del gimnasio');
+      }
+    } catch (error) {
+      console.error('Error loading gym:', error);
+      Alert.alert('Error', 'No se pudo cargar la información del gimnasio');
+    }
   };
 
   if (loading) {
@@ -323,10 +351,10 @@ const HomeScreen = () => {
               </Card>
             </View>
 
-            {/* Gimnasio */}
-            {gymSubscription && (
-              <View style={styles.carouselPage}>
-                <Card key="gym" style={styles.carouselCard}>
+            {/* Gimnasios */}
+            {gymSubscriptions.map((gymSubscription) => (
+              <View key={gymSubscription.id} style={styles.carouselPage}>
+                <Card style={styles.carouselCard}>
                   <View style={styles.carouselContent}>
                     <View style={[styles.carouselIcon, { backgroundColor: colors.info + '20' }]}>
                       <Ionicons name="business-outline" size={32} color={colors.info} />
@@ -344,14 +372,14 @@ const HomeScreen = () => {
                     </View>
                     <TouchableOpacity
                       style={[styles.carouselButton, { backgroundColor: colors.info }]}
-                      onPress={() => navigation.navigate('Gyms' as never)}
+                      onPress={() => handleGymDetailNavigation(gymSubscription.gymId)}
                     >
                       <Text style={styles.carouselButtonText}>Gestionar Suscripción</Text>
                     </TouchableOpacity>
                   </View>
                 </Card>
               </View>
-            )}
+            ))}
 
             {/* Suplementos */}
             <View style={styles.carouselPage}>
@@ -376,11 +404,59 @@ const HomeScreen = () => {
                 </TouchableOpacity>
               </Card>
             </View>
+
+            {/* Mis Macros */}
+            <View style={styles.carouselPage}>
+              <Card key="macros" style={styles.carouselCard}>
+                <TouchableOpacity
+                  style={styles.carouselContent}
+                  onPress={() => navigation.navigate('ProfileStack' as never, { screen: 'ProfileMain' } as never)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.carouselIcon, { backgroundColor: colors.warning + '20' }]}>
+                    <Ionicons name="nutrition-outline" size={32} color={colors.warning} />
+                  </View>
+                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                    Mis Macros
+                  </Text>
+                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                    Visualiza tus macronutrientes diarios
+                  </Text>
+                  <View style={[styles.carouselButton, { backgroundColor: colors.warning }]}>
+                    <Text style={styles.carouselButtonText}>Ver Macros</Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </View>
+
+            {/* Mi Progreso */}
+            <View style={styles.carouselPage}>
+              <Card key="progress" style={styles.carouselCard}>
+                <TouchableOpacity
+                  style={styles.carouselContent}
+                  onPress={() => navigation.navigate('ProfileStack' as never, { screen: 'Progress' } as never)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.carouselIcon, { backgroundColor: colors.info + '20' }]}>
+                    <Ionicons name="trending-up-outline" size={32} color={colors.info} />
+                  </View>
+                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
+                    Mi Progreso
+                  </Text>
+                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
+                    Sigue tu evolución y logros
+                  </Text>
+                  <View style={[styles.carouselButton, { backgroundColor: colors.info }]}>
+                    <Text style={styles.carouselButtonText}>Ver Progreso</Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </View>
           </ScrollView>
         </View>
 
         {/* Recommended Supplements */}
-        {gymSubscription && (
+        {gymSubscriptions.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -440,77 +516,86 @@ const HomeScreen = () => {
           </View>
         )}
 
-        {/* Gym Subscription */}
+        {/* Gym Subscriptions */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Suscripción al Gimnasio
           </Text>
           
-          {gymSubscription ? (
-            <Card style={styles.subscriptionCard}>
-              <View style={styles.subscriptionHeader}>
-                <View style={[styles.gymIcon, { backgroundColor: colors.info + '20' }]}>
-                  <Ionicons name="business-outline" size={24} color={colors.info} />
-                </View>
-                <View style={styles.subscriptionInfo}>
-                  <Text style={[styles.gymName, { color: colors.text }]}>
-                    {gymSubscription.gymName}
-                  </Text>
-                  <Text style={[styles.planType, { color: colors.textSecondary }]}>
-                    {gymSubscription.planType}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.statusBadge, 
-                  { backgroundColor: getSubscriptionStatusColor(gymSubscription.status) + '20' }
-                ]}>
-                  <Text style={[
-                    styles.statusText, 
-                    { color: getSubscriptionStatusColor(gymSubscription.status) }
-                  ]}>
-                    Activa
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.subscriptionDetails}>
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                      Vence el
-                    </Text>
-                    <Text style={[styles.detailValue, { color: colors.text }]}>
-                      {formatDate(gymSubscription.endDate)}
-                    </Text>
+          {gymSubscriptions.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              style={styles.subscriptionsScroll}
+            >
+              {gymSubscriptions.map((subscription, index) => (
+                <Card key={subscription.id} style={[styles.subscriptionCard, { marginRight: index === gymSubscriptions.length - 1 ? 0 : 12 }]}>
+                  <View style={styles.subscriptionHeader}>
+                    <View style={[styles.gymIcon, { backgroundColor: colors.info + '20' }]}>
+                      <Ionicons name="business-outline" size={24} color={colors.info} />
+                    </View>
+                    <View style={styles.subscriptionInfo}>
+                      <Text style={[styles.gymName, { color: colors.text }]}>
+                        {subscription.gymName}
+                      </Text>
+                      <Text style={[styles.planType, { color: colors.textSecondary }]}>
+                        {subscription.planType}
+                      </Text>
+                    </View>
+                    <View style={[
+                      styles.statusBadge, 
+                      { backgroundColor: getSubscriptionStatusColor(subscription.status) + '20' }
+                    ]}>
+                      <Text style={[
+                        styles.statusText, 
+                        { color: getSubscriptionStatusColor(subscription.status) }
+                      ]}>
+                        {getSubscriptionStatusText(subscription.status)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="cash-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                      Precio mensual
-                    </Text>
-                    <Text style={[styles.detailValue, { color: colors.text }]}>
-                      ${gymSubscription.price}/mes
-                    </Text>
-                  </View>
-                </View>
+                  
+                  <View style={styles.subscriptionDetails}>
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailItem}>
+                        <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+                        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                          Vence el
+                        </Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]}>
+                          {formatDate(subscription.endDate)}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailItem}>
+                        <Ionicons name="cash-outline" size={16} color={colors.textSecondary} />
+                        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                          Precio mensual
+                        </Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]}>
+                          ${subscription.price}/mes
+                        </Text>
+                      </View>
+                    </View>
 
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                      Días restantes
-                    </Text>
-                    <Text style={[styles.detailValue, { color: colors.success }]}>
-                      {getDaysUntilExpiration(gymSubscription.endDate)} días
-                    </Text>
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailItem}>
+                        <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                          Días restantes
+                        </Text>
+                        <Text style={[styles.detailValue, { color: colors.success }]}>
+                          {getDaysUntilExpiration(subscription.endDate)} días
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            </Card>
+                </Card>
+              ))}
+            </ScrollView>
           ) : (
             <Card style={styles.emptySubscriptionCard}>
               <Ionicons name="business-outline" size={48} color={colors.textSecondary} />
@@ -794,8 +879,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 12,
   },
+  subscriptionsScroll: {
+    marginHorizontal: -24,
+    paddingHorizontal: 24,
+  },
   subscriptionCard: {
     marginBottom: 8,
+    minWidth: Dimensions.get('window').width - 64,
   },
   subscriptionHeader: {
     flexDirection: 'row',

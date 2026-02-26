@@ -61,14 +61,24 @@ const StoreScreen = () => {
   const loadSupplements = async () => {
     try {
       setLoading(true);
-      // Obtener suscripción del usuario
-      const subscription = await userSubscriptionsApi.getUserActiveSubscription();
+      // Obtener todas las suscripciones activas del usuario
+      const subscriptions = await userSubscriptionsApi.getUserAllActiveSubscriptions();
       
-      if (subscription?.gym_id) {
-        // Cargar solo productos del gimnasio al que está suscrito
-        const data = await storeApi.getSupplementsByGym(subscription.gym_id);
-        setSupplements(data);
-        setHasSubscription(true);
+      if (subscriptions && subscriptions.length > 0) {
+        // Obtener IDs de los gyms a los que está suscrito
+        const gymIds = subscriptions
+          .map(sub => sub.gym_id)
+          .filter((id): id is string => Boolean(id));
+        
+        if (gymIds.length > 0) {
+          // Cargar productos de todos los gimnasios a los que está suscrito
+          const data = await storeApi.getSupplementsByGyms(gymIds);
+          setSupplements(data);
+          setHasSubscription(true);
+        } else {
+          setSupplements([]);
+          setHasSubscription(false);
+        }
       } else {
         // Si no está suscrito, no mostrar nada
         setSupplements([]);

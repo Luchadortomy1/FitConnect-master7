@@ -124,6 +124,49 @@ export const storeApi = {
     }
   },
 
+  /**
+   * Obtener suplementos de múltiples gimnasios
+   */
+  async getSupplementsByGyms(gymIds: string[]): Promise<Supplement[]> {
+    try {
+      if (!gymIds || gymIds.length === 0) {
+        return mockSupplements;
+      }
+
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .in('gym_id', gymIds)
+        .eq('is_active', true);
+
+      if (error) {
+        console.warn('Error fetching supplements from multiple gyms, using mock data:', error);
+        return mockSupplements;
+      }
+
+      if (!data || data.length === 0) {
+        return mockSupplements;
+      }
+
+      return data.map(product => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
+        category: (product.category || 'other') as any,
+        rating: 4.5,
+        reviews: 0,
+        ingredients: [],
+        servingSize: '',
+        servingsPerContainer: 0,
+      }));
+    } catch (error) {
+      console.error('Error getting supplements from multiple gyms:', error);
+      return mockSupplements;
+    }
+  },
+
   async getSupplements(): Promise<Supplement[]> {
     try {
       const { data, error } = await supabase

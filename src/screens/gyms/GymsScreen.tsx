@@ -31,7 +31,7 @@ const GymsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [activeSubscription, setActiveSubscription] = useState<any>(null);
+  const [userSubscriptions, setUserSubscriptions] = useState<any[]>([]);
 
   useEffect(() => {
     loadInitialData();
@@ -45,9 +45,9 @@ const GymsScreen = () => {
       const allGyms = await gymsApi.getAllGyms();
       setGyms(allGyms);
       
-      // Load active subscription
-      const subscription = await userSubscriptionsApi.getUserActiveSubscription();
-      setActiveSubscription(subscription);
+      // Load all active subscriptions
+      const subscriptions = await userSubscriptionsApi.getUserAllActiveSubscriptions();
+      setUserSubscriptions(subscriptions);
     } catch (error) {
       console.error('Error loading gyms:', error);
       Alert.alert('Error', 'Failed to load gyms. Please try again.');
@@ -100,43 +100,7 @@ const GymsScreen = () => {
     }
   };
 
-  const handleCancelSubscription = () => {
-    Alert.alert(
-      'Cancelar Suscripción',
-      '¿Estás seguro de que deseas cancelar tu suscripción?',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Sí, Cancelar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (activeSubscription) {
-                await userSubscriptionsApi.cancelSubscription(activeSubscription.id);
-                Alert.alert('Éxito', 'Tu suscripción ha sido cancelada');
-                await loadInitialData();
-              }
-            } catch (error) {
-              console.error('Error canceling subscription:', error);
-              Alert.alert('Error', 'No se pudo cancelar la suscripción');
-            }
-          },
-        },
-      ]
-    );
-  };
 
-  const handleRenewSubscription = async () => {
-    try {
-      if (activeSubscription) {
-        // Navegar a pantalla de renovación o mostrar opciones
-        Alert.alert('Renovar', 'Redirigiendo a opciones de renovación...');
-      }
-    } catch (error) {
-      console.error('Error renewing subscription:', error);
-      Alert.alert('Error', 'No se pudo renovar la suscripción');
-    }
-  };
 
   const renderGymItem = ({ item: gym }: { item: Gym }) => {
     const imageUri = gym.image || FALLBACK_IMAGE;
@@ -226,41 +190,6 @@ const GymsScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Active Subscription Section */}
-      {activeSubscription && (
-        <View style={[styles.subscriptionSection, { backgroundColor: colors.info + '10' }]}>
-          <View style={styles.subscriptionHeader}>
-            <View style={styles.subscriptionInfo}>
-              <Text style={[styles.subscriptionTitle, { color: colors.text }]}>
-                Tu Suscripción Activa
-              </Text>
-              <Text style={[styles.subscriptionGym, { color: colors.textSecondary }]}>
-                {activeSubscription.gym_name || 'Gimnasio'}
-              </Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: '#10B981' }]}>
-              <Text style={styles.statusText}>Activa</Text>
-            </View>
-          </View>
-          <View style={styles.subscriptionActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary }]}
-              onPress={handleRenewSubscription}
-            >
-              <Ionicons name="refresh-outline" size={18} color="white" />
-              <Text style={styles.actionButtonText}>Renovar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.error }]}
-              onPress={handleCancelSubscription}
-            >
-              <Ionicons name="trash-outline" size={18} color="white" />
-              <Text style={styles.actionButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <Text style={[styles.title, { color: colors.text }]}>

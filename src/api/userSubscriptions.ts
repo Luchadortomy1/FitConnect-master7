@@ -158,6 +158,170 @@ export const userSubscriptionsApi = {
   },
 
   /**
+   * Renovar suscripción del usuario (extender fecha de vencimiento)
+   */
+  async renewSubscription(subscriptionId: string, stripePaymentId?: string): Promise<UserSubscription | null> {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('No authenticated user');
+      }
+
+      // Obtener la suscripción actual
+      const { data: subscription, error: subError } = await supabase
+        .from('user_subscriptions')
+        .select('*, subscription_plans(duration_days, gyms(id, name), name, price)')
+        .eq('id', subscriptionId)
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (subError || !subscription) {
+        throw new Error('Subscription not found');
+      }
+
+      const plan = subscription.subscription_plans as any;
+      const currentEndDate = new Date(subscription.end_date);
+      const newEndDate = new Date(currentEndDate.getTime() + (plan.duration_days * 24 * 60 * 60 * 1000));
+
+      // Actualizar suscripción con nueva fecha de vencimiento
+      const updateData: any = {
+        end_date: newEndDate.toISOString(),
+        status: 'active',
+      };
+
+      if (stripePaymentId) {
+        updateData.stripe_payment_id = stripePaymentId;
+      }
+
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .update(updateData)
+        .eq('id', subscriptionId)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const gym = plan?.gyms;
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        plan_id: data.plan_id,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        status: data.status,
+        stripe_payment_id: data.stripe_payment_id,
+        created_at: data.created_at,
+        gym_id: gym?.id,
+        gym_name: gym?.name,
+        plan_name: plan?.name,
+        plan_price: plan?.price,
+      };
+    } catch (error) {
+      console.error('Error renewing subscription:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Obtener todas las suscripciones del usuario (activas, expiradas, canceladas)
+   */
+  async getUserAllSubscriptions(): Promise<UserSubscription[]> {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        console.warn('No active session');
+        return [];
+      }
+
+      // Primero, marcar como expiradas las que pasaron su fecha
+      const now = new Date().toISOString();
+      await supabase
+        .from('user_subscriptions')
+        .update({ status: 'expired' })
+        .eq('user_id', session.user.id)
+        .lt('end_date', now)
+        .neq('status', 'expired')
+        .neq('status', 'cancelled');
+
+      // Luego, obtener todas las suscripciones
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          id,
+          user_id,
+          plan_id,
+          start_date,
+          end_date,
+          status,
+          stripe_payment_id,
+          created_at,
+          subscription_plans(
+            id,
+            gym_id,
+            name,
+            price,
+            gyms(
+              id,
+              name
+            )
+          )
+        `)
+        .eq('user_id', session.user.id)
+        .in('status', ['active', 'expired']);
+
+      if (error) {
+        console.error('Error fetching subscriptions:', error);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Mapear respuestas a interfaz UserSubscription
+      return data.map((subscription: any) => {
+        const plan = subscription.subscription_plans as any;
+        const gym = plan?.gyms;
+
+        return {
+          id: subscription.id,
+          user_id: subscription.user_id,
+          plan_id: subscription.plan_id,
+          start_date: subscription.start_date,
+          end_date: subscription.end_date,
+          status: subscription.status,
+          stripe_payment_id: subscription.stripe_payment_id,
+          created_at: subscription.created_at,
+          gym_id: gym?.id,
+          gym_name: gym?.name,
+          plan_name: plan?.name,
+          plan_price: plan?.price,
+        };
+      });
+    } catch (error) {
+      console.error('Error getting user subscriptions:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Obtener todas las suscripciones activas del usuario
+   */
+  async getUserAllActiveSubscriptions(): Promise<UserSubscription[]> {
+    try {
+      const subscriptions = await this.getUserAllSubscriptions();
+      // Filtrar solo las activas
+      return subscriptions.filter(sub => sub.status === 'active');
+    } catch (error) {
+      console.error('Error getting active subscriptions:', error);
+      return [];
+    }
+  },
+
+  /**
    * Cancelar suscripción del usuario
    */
   async cancelSubscription(subscriptionId: string): Promise<boolean> {

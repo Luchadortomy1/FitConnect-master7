@@ -30,17 +30,21 @@ const GymDetailScreen = () => {
   
   const [gym, setGym] = useState<Gym>(initialGym);
   const [loading, setLoading] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [userSubscriptions, setUserSubscriptions] = useState<any[]>([]);
+  const [isUserSubscribed, setIsUserSubscribed] = useState(false);
+  const [isUserSubscriptionExpired, setIsUserSubscriptionExpired] = useState(false);
+  const [isRenewalMode, setIsRenewalMode] = useState(false);
 
   useEffect(() => {
     loadGymDetails();
     loadUserLocation();
     loadSubscriptionPlans();
+    loadUserSubscriptions();
   }, []);
 
   const loadGymDetails = async () => {
@@ -70,11 +74,155 @@ const GymDetailScreen = () => {
 
   const loadUserLocation = async () => {
     const location = await gymsApi.getCurrentLocation();
-    setUserLocation(location);
+    if (location) {
+      // setUserLocation(location); // Location not needed for basic display
+    }
+  };
+
+  const loadUserSubscriptions = async () => {
+    try {
+      const subscriptions = await userSubscriptionsApi.getUserAllSubscriptions();
+      setUserSubscriptions(subscriptions);
+      
+      // Verificar si el usuario está suscrito a este gym (activo o expirado)
+      const gymSubscription = subscriptions.find(sub => sub.gym_id === initialGym.id);
+      const isSubscribed = !!gymSubscription;
+      const isExpired = gymSubscription?.status === 'expired';
+      
+      setIsUserSubscribed(isSubscribed);
+      setIsUserSubscriptionExpired(isExpired);
+    } catch (error) {
+      console.error('Error loading subscriptions:', error);
+    }
+  };
+
+  const handleCancelSubscription = () => {
+    Alert.alert(
+      'Cancelar Suscripción',
+      '¿Estás seguro de que deseas cancelar tu suscripción a este gimnasio?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, Cancelar',
+          style: 'destructive',
+          onPress: () => { void handleConfirmCancel(); },
+        },
+      ]
+    );
+  };
+
+  const handleConfirmCancel = async () => {
+    try {
+      setIsSubscribing(true);
+      const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+      if (subscription) {
+        if (isUserSubscriptionExpired) {
+          // Si está expirada, renovar
+          const renewed = await userSubscriptionsApi.renewSubscription(subscription.id);
+          if (renewed) {
+            Alert.alert('Éxito', 'Tu suscripción ha sido renovada');
+            setIsUserSubscriptionExpired(false);
+            await loadUserSubscriptions();
+          } else {
+            Alert.alert('Error', 'No se pudo renovar la suscripción');
+          }
+        } else {
+          // Si está activa, cancelar
+          await userSubscriptionsApi.cancelSubscription(subscription.id);
+          Alert.alert('Éxito', 'Tu suscripción ha sido cancelada');
+          setIsUserSubscribed(false);
+          await loadUserSubscriptions();
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Error', 'No se pudo procesar la solicitud');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const handleRenewalWithPayment = async () => {
+    // Obtener el plan actual de la suscripción expirada
+    const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+    if (subscription && subscriptionPlans.length > 0) {
+      // Usar el plan actual para la renovación
+      const currentPlan = subscriptionPlans.find(p => p.id === subscription.plan_id) || subscriptionPlans[0];
+      setSelectedPlan(currentPlan);
+      setIsRenewalMode(true);
+      setShowPaymentModal(true);
+    } else {
+      Alert.alert('Error', 'No se pudo obtener la información del plan');
+    }
+  };
+
+  const renewWithPayment = async (paymentIntentId: string) => {
+    try {
+      setIsSubscribing(true);
+      const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+      if (subscription) {
+        const result = await userSubscriptionsApi.renewSubscription(subscription.id, paymentIntentId);
+        if (result) {
+          Alert.alert('Éxito', '¡Tu suscripción ha sido renovada correctamente!');
+          setIsUserSubscriptionExpired(false);
+          await loadUserSubscriptions();
+        } else {
+          Alert.alert('Error', 'No se pudo renovar la suscripción');
+        }
+      }
+    } catch (error) {
+      console.error('Error renewing subscription:', error);
+      Alert.alert('Error', 'Ocurrió un error al intentar renovar');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const handleCancelExpiredSubscription = async () => {
+    try {
+      setIsSubscribing(true);
+      const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+      if (subscription) {
+        await userSubscriptionsApi.cancelSubscription(subscription.id);
+        Alert.alert('Éxito', 'Tu suscripción ha sido cancelada');
+        setIsUserSubscribed(false);
+        setIsUserSubscriptionExpired(false);
+        await loadUserSubscriptions();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Error', 'No se pudo cancelar la suscripción');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const getSubscriptionButtonText = (): string => {
+    if (isSubscribing) {
+      if (isUserSubscriptionExpired) return 'Renovando...';
+      if (isUserSubscribed) return 'Cancelando...';
+      return 'Suscribiendo...';
+    }
+    if (isUserSubscriptionExpired) {
+      return 'Renovar';
+    }
+    return isUserSubscribed ? 'Cancelar' : 'Suscribirse';
+  };
+
+  const getSubscriptionButtonColor = (): string => {
+    if (isUserSubscriptionExpired) return colors.warning;
+    if (isUserSubscribed) return colors.error;
+    return colors.success;
+  };
+
+  const getSubscriptionButtonIcon = (): string => {
+    if (isUserSubscriptionExpired) return 'refresh-outline';
+    if (isUserSubscribed) return 'trash-outline';
+    return 'checkmark-circle';
   };
 
   const handleDirections = () => {
-    const directionsUrl = gymsApi.getDirectionsUrl(gym, userLocation || undefined);
+    const directionsUrl = gymsApi.getDirectionsUrl(gym);
     Linking.openURL(directionsUrl);
   };
 
@@ -141,11 +289,16 @@ const GymDetailScreen = () => {
 
   const handlePaymentSuccess = async (paymentIntentId: string) => {
     try {
-      // Aquí se llama a la función para completar la suscripción después del pago
-      if (selectedPlan) {
+      // Diferenciar entre nueva suscripción y renovación
+      if (isRenewalMode) {
+        // Renovación con pago
+        await renewWithPayment(paymentIntentId);
+        setIsRenewalMode(false);
+      } else if (selectedPlan) {
+        // Nueva suscripción
         await subscribeToGym(selectedPlan.id, paymentIntentId);
-        setShowPaymentModal(false);
       }
+      setShowPaymentModal(false);
     } catch (error) {
       console.error('Error completing subscription:', error);
       Alert.alert('Error', 'Error al completar la suscripción');
@@ -315,15 +468,54 @@ const GymDetailScreen = () => {
               <Text style={styles.primaryButtonText}>Directions</Text>
             </TouchableOpacity>
 
-            {subscriptionPlans.length > 0 && (
+            {/* Subscription Button(s) */}
+            {isUserSubscriptionExpired ? (
+              // Si está expirada: mostrar dos botones (Renovar y Cancelar)
+              <View style={{ marginTop: 10, gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.primaryButton, { backgroundColor: colors.warning }]}
+                  onPress={handleRenewalWithPayment}
+                  disabled={isSubscribing}
+                >
+                  <Ionicons name="refresh-outline" size={20} color="white" />
+                  <Text style={styles.primaryButtonText}>
+                    {isSubscribing ? 'Renovando...' : 'Renovar'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.primaryButton, { backgroundColor: colors.error }]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Cancelar Suscripción',
+                      '¿Estás seguro de que deseas cancelar esta suscripción expirada?',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Sí, cancelar',
+                          onPress: () => { handleCancelExpiredSubscription(); },
+                          style: 'destructive',
+                        },
+                      ]
+                    );
+                  }}
+                  disabled={isSubscribing}
+                >
+                  <Ionicons name="trash-outline" size={20} color="white" />
+                  <Text style={styles.primaryButtonText}>
+                    {isSubscribing ? 'Cancelando...' : 'Cancelar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Si está activa o sin suscripción: mostrar un botón
               <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: colors.success, marginTop: 10 }]}
-                onPress={handleSubscribe}
+                style={[styles.primaryButton, { backgroundColor: getSubscriptionButtonColor(), marginTop: 10 }]}
+                onPress={isUserSubscribed ? handleCancelSubscription : handleSubscribe}
                 disabled={isSubscribing}
               >
-                <Ionicons name="checkmark-circle" size={20} color="white" />
+                <Ionicons name={getSubscriptionButtonIcon()} size={20} color="white" />
                 <Text style={styles.primaryButtonText}>
-                  {isSubscribing ? 'Suscribiendo...' : 'Subscribe'}
+                  {getSubscriptionButtonText()}
                 </Text>
               </TouchableOpacity>
             )}
