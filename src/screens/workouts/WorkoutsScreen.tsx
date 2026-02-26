@@ -100,12 +100,16 @@ const WorkoutsScreen = () => {
       setActiveRoutine(activeRoutineData || null);
 
       // Cargar sesiones de hoy
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const today = new Date();
+      const todayLocal = today.toLocaleDateString('en-CA'); // YYYY-MM-DD in local tz
       try {
         const sessions = await workoutSessionsApi.getSessions(1);
-        const todaysSessionsList = sessions.filter((s: any) => 
-          s.completed_at?.split('T')[0] === today
-        );
+        const todaysSessionsList = sessions.filter((s: any) => {
+          const completed = s.completed_at ? new Date(s.completed_at) : null;
+          if (!completed) return false;
+          const completedLocal = completed.toLocaleDateString('en-CA');
+          return completedLocal === todayLocal;
+        });
         setTodaysSessions(todaysSessionsList);
       } catch (error) {
         console.warn('Error loading todays sessions:', error);

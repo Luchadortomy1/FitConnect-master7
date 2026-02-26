@@ -20,7 +20,7 @@ import { Button } from '@/components/Button';
 import { DayWorkout, DayExercise } from '@/types';
 import { routinesApi } from '@/api/routines';
 import { getExerciseImageSource, buildYoutubeSearchUrl, slugifyExercise } from '@/utils/exerciseMedia';
-import { fetchExerciseGif } from '@/api/exerciseMediaApi';
+import { fetchExerciseImage } from '@/api/exerciseMediaApi';
 
 interface RouteParams {
   dayWorkout: DayWorkout;
@@ -219,8 +219,8 @@ const DayWorkoutScreen = () => {
       if (remoteMedia.hasOwnProperty(slug)) return;
 
       setRemoteLoading(prev => ({ ...prev, [slug]: true }));
-      const gifUrl = await fetchExerciseGif(exercise.name);
-      setRemoteMedia(prev => ({ ...prev, [slug]: gifUrl }));
+      const imgUrl = await fetchExerciseImage(exercise.name);
+      setRemoteMedia(prev => ({ ...prev, [slug]: imgUrl }));
       setRemoteLoading(prev => ({ ...prev, [slug]: false }));
     };
 
@@ -323,7 +323,7 @@ const DayWorkoutScreen = () => {
             ) : (
               <View style={[styles.imagePlaceholder, { borderColor: colors.surface, backgroundColor: colors.surface }]}>
                 {isRemoteLoading ? (
-                  <Text style={[styles.imagePlaceholderText, { color: colors.textSecondary }]}>Buscando GIF...</Text>
+                  <Text style={[styles.imagePlaceholderText, { color: colors.textSecondary }]}>Buscando imagen...</Text>
                 ) : (
                   <>
                     <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
@@ -543,7 +543,7 @@ const DayWorkoutScreen = () => {
               title="Comenzar Entrenamiento"
               onPress={handleStartTraining}
               style={styles.trainingButton}
-              icon="play"
+              icon={<Ionicons name="play" size={16} color="white" />}
             />
           ) : (
             <View style={styles.trainingButtonsRow}>
@@ -551,13 +551,13 @@ const DayWorkoutScreen = () => {
                 title="Pausar"
                 onPress={() => setIsTrainingMode(false)}
                 style={[styles.trainingButton, { backgroundColor: colors.warning }]}
-                icon="pause"
+                icon={<Ionicons name="pause" size={16} color="white" />}
               />
               <Button
                 title="Finalizar"
                 onPress={handleFinishTraining}
                 style={[styles.trainingButton, { backgroundColor: colors.success }]}
-                icon="checkmark"
+                icon={<Ionicons name="checkmark" size={16} color="white" />}
               />
             </View>
           )}
