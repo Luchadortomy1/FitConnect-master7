@@ -7,7 +7,10 @@
     "userInterfaceStyle": "automatic",
     "scheme": "fitconnect",
     "extra": {
-      "PEXELS_API_KEY": "aqui vala api"
+      "PEXELS_API_KEY": "aqui vala api",
+      "eas": {
+        "projectId": "705e253d-7203-4a86-869c-dcd2b151bbb3"
+      }
     },
     "splash": {
       "resizeMode": "contain",

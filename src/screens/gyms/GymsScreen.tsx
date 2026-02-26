@@ -30,7 +30,6 @@ const GymsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [userSubscriptions, setUserSubscriptions] = useState<any[]>([]);
 
   useEffect(() => {
@@ -195,16 +194,6 @@ const GymsScreen = () => {
         <Text style={[styles.title, { color: colors.text }]}>
           Gyms & Fitness Centers
         </Text>
-        <TouchableOpacity 
-          style={styles.viewModeButton}
-          onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-        >
-          <Ionicons 
-            name={viewMode === 'list' ? 'map' : 'list'} 
-            size={24} 
-            color={colors.primary} 
-          />
-        </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
