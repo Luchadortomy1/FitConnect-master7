@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "fitconnect",
+    "extra": {
+      "EXERCISEDB_API_KEY": "aqui vala api"
+    },
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#1a1a2e"

@@ -19,7 +19,8 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { DayWorkout, DayExercise } from '@/types';
 import { routinesApi } from '@/api/routines';
-import { getExerciseImageSource, buildYoutubeSearchUrl } from '@/utils/exerciseMedia';
+import { getExerciseImageSource, buildYoutubeSearchUrl, slugifyExercise } from '@/utils/exerciseMedia';
+import { fetchExerciseGif } from '@/api/exerciseMediaApi';
 
 interface RouteParams {
   dayWorkout: DayWorkout;
@@ -45,6 +46,8 @@ const DayWorkoutScreen = () => {
   const [trainingStartTime, setTrainingStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
+  const [remoteMedia, setRemoteMedia] = useState<Record<string, string | null>>({});
+  const [remoteLoading, setRemoteLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Initialize completed sets tracking
@@ -203,6 +206,27 @@ const DayWorkoutScreen = () => {
     setExpandedExerciseId(prev => (prev === exerciseId ? null : exerciseId));
   };
 
+  useEffect(() => {
+    const loadRemoteMedia = async () => {
+      if (!expandedExerciseId) return;
+      const exercise = workout.exercises.find(ex => ex.id === expandedExerciseId);
+      if (!exercise) return;
+      // If there is a local image, skip remote fetch
+      const hasLocal = Boolean(getExerciseImageSource(exercise.name));
+      if (hasLocal) return;
+
+      const slug = slugifyExercise(exercise.name);
+      if (remoteMedia.hasOwnProperty(slug)) return;
+
+      setRemoteLoading(prev => ({ ...prev, [slug]: true }));
+      const gifUrl = await fetchExerciseGif(exercise.name);
+      setRemoteMedia(prev => ({ ...prev, [slug]: gifUrl }));
+      setRemoteLoading(prev => ({ ...prev, [slug]: false }));
+    };
+
+    loadRemoteMedia();
+  }, [expandedExerciseId, workout.exercises, remoteMedia]);
+
   const getMuscleGroupColor = (muscle: string): string => {
     const lowerMuscle = muscle.toLowerCase();
     if (lowerMuscle.includes('pecho')) return colors.error;
@@ -218,6 +242,9 @@ const DayWorkoutScreen = () => {
     const completedCount = exerciseSets.filter(Boolean).length;
     const isExpanded = expandedExerciseId === exercise.id;
     const imageSource = getExerciseImageSource(exercise.name);
+    const slug = slugifyExercise(exercise.name);
+    const remoteUrl = remoteMedia[slug];
+    const isRemoteLoading = remoteLoading[slug];
     
     return (
       <Card key={exercise.id} style={[styles.exerciseCard, { overflow: 'hidden' as any }]}>
@@ -287,12 +314,24 @@ const DayWorkoutScreen = () => {
                 style={styles.exerciseImage}
                 resizeMode="cover"
               />
+            ) : remoteUrl ? (
+              <Image
+                source={{ uri: remoteUrl }}
+                style={styles.exerciseImage}
+                resizeMode="cover"
+              />
             ) : (
               <View style={[styles.imagePlaceholder, { borderColor: colors.surface, backgroundColor: colors.surface }]}>
-                <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
-                <Text style={[styles.imagePlaceholderText, { color: colors.textSecondary }]}>
-                  Agrega una imagen en assets/exercises
-                </Text>
+                {isRemoteLoading ? (
+                  <Text style={[styles.imagePlaceholderText, { color: colors.textSecondary }]}>Buscando GIF...</Text>
+                ) : (
+                  <>
+                    <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.imagePlaceholderText, { color: colors.textSecondary }]}>
+                      Sin imagen disponible
+                    </Text>
+                  </>
+                )}
               </View>
             )}
 
