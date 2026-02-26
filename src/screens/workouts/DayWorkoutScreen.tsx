@@ -8,6 +8,8 @@ import {
   Alert,
   TextInput,
   Modal,
+  Image,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -17,6 +19,7 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { DayWorkout, DayExercise } from '@/types';
 import { routinesApi } from '@/api/routines';
+import { getExerciseImageSource, buildYoutubeSearchUrl } from '@/utils/exerciseMedia';
 
 interface RouteParams {
   dayWorkout: DayWorkout;
@@ -41,6 +44,7 @@ const DayWorkoutScreen = () => {
   const [editingExercise, setEditingExercise] = useState<string | null>(null);
   const [trainingStartTime, setTrainingStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
 
   useEffect(() => {
     // Initialize completed sets tracking
@@ -195,6 +199,10 @@ const DayWorkoutScreen = () => {
     );
   };
 
+  const toggleExerciseExpanded = (exerciseId: string) => {
+    setExpandedExerciseId(prev => (prev === exerciseId ? null : exerciseId));
+  };
+
   const getMuscleGroupColor = (muscle: string): string => {
     const lowerMuscle = muscle.toLowerCase();
     if (lowerMuscle.includes('pecho')) return colors.error;
@@ -208,11 +216,16 @@ const DayWorkoutScreen = () => {
   const renderExercise = (exercise: DayExercise, index: number) => {
     const exerciseSets = completedSets[exercise.id] || [];
     const completedCount = exerciseSets.filter(Boolean).length;
+    const isExpanded = expandedExerciseId === exercise.id;
+    const imageSource = getExerciseImageSource(exercise.name);
     
     return (
       <Card key={exercise.id} style={[styles.exerciseCard, { overflow: 'hidden' as any }]}>
-        
-        <View style={styles.exerciseHeader}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => toggleExerciseExpanded(exercise.id)}
+          style={styles.exerciseHeader}
+        >
           <View style={styles.exerciseInfo}>
             <View style={styles.exerciseTitleRow}>
               <View style={[
@@ -264,7 +277,34 @@ const DayWorkoutScreen = () => {
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.exerciseExtra}>
+            {imageSource ? (
+              <Image
+                source={imageSource}
+                style={styles.exerciseImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.imagePlaceholder, { borderColor: colors.surface, backgroundColor: colors.surface }]}>
+                <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
+                <Text style={[styles.imagePlaceholderText, { color: colors.textSecondary }]}>
+                  Agrega una imagen en assets/exercises
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.youtubeButton, { borderColor: colors.error }]}
+              onPress={() => Linking.openURL(buildYoutubeSearchUrl(exercise.name))}
+            >
+              <Ionicons name="logo-youtube" size={18} color={colors.error} />
+              <Text style={[styles.youtubeText, { color: colors.error }]}>Ver en YouTube</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {isTrainingMode && (
           <View style={styles.setsContainer}>
@@ -701,6 +741,38 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  exerciseExtra: {
+    marginTop: 12,
+    gap: 12,
+  },
+  exerciseImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+  },
+  imagePlaceholder: {
+    height: 180,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  imagePlaceholderText: {
+    fontSize: 12,
+  },
+  youtubeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  youtubeText: {
+    fontWeight: '600',
   },
   exerciseActions: {
     flexDirection: 'row',

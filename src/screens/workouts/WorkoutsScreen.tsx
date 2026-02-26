@@ -52,6 +52,33 @@ const WorkoutsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaysSessions, setTodaysSessions] = useState<any[]>([]);
+  const routinesSafe = Array.isArray(routines) ? routines : [];
+
+  const handleCreateRoutinePress = () => {
+    const routineCount = Array.isArray(routines) ? routines.length : 0;
+
+    if (routineCount >= 2) {
+      Alert.alert(
+        'Límite alcanzado',
+        'Recomendamos máximo 2 rutinas activas para no sobrecargar tu semana. Elimina una para crear otra.'
+      );
+      return;
+    }
+
+    if (routineCount >= 1) {
+      Alert.alert(
+        'Recomendación',
+        'Es recomendable tener solo una rutina activa. Puedes crear una más si lo necesitas.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Continuar', onPress: () => navigation.navigate('CreateRoutine' as never) },
+        ]
+      );
+      return;
+    }
+
+    navigation.navigate('CreateRoutine' as never);
+  };
 
   const weekDays: { key: WeekDay; label: string; short: string }[] = [
     { key: 'monday', label: 'Lunes', short: 'L' },
@@ -69,8 +96,8 @@ const WorkoutsScreen = () => {
         routinesApi.getRoutines(),
         routinesApi.getActiveRoutine(),
       ]);
-      setRoutines(routinesData);
-      setActiveRoutine(activeRoutineData);
+      setRoutines(Array.isArray(routinesData) ? routinesData : []);
+      setActiveRoutine(activeRoutineData || null);
 
       // Cargar sesiones de hoy
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
@@ -86,6 +113,8 @@ const WorkoutsScreen = () => {
       }
     } catch (error) {
       console.error('Error loading routines:', error);
+      setRoutines([]);
+      setActiveRoutine(null);
     } finally {
       setLoading(false);
     }
@@ -227,7 +256,7 @@ const WorkoutsScreen = () => {
         rightComponent={
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate('CreateRoutine' as never)}
+            onPress={handleCreateRoutinePress}
           >
             <Ionicons name="add" size={24} color="white" />
           </TouchableOpacity>
@@ -270,7 +299,7 @@ const WorkoutsScreen = () => {
                   <Ionicons name="flame" size={16} color={colors.primary} />
                   <Text style={[styles.heroBadgeText, { color: colors.primary }]}>Rutina activa</Text>
                 </View>
-                <TouchableOpacity onPress={() => navigation.navigate('CreateRoutine' as never)}>
+                  <TouchableOpacity onPress={handleCreateRoutinePress}>
                   <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -331,7 +360,7 @@ const WorkoutsScreen = () => {
               <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>Crea tu primera rutina</Text>
               <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>Organiza tus entrenos semanales y sigue el plan del mock</Text>
-              <Button title="Crear rutina" onPress={() => navigation.navigate('CreateRoutine' as never)} style={styles.createButton} />
+              <Button title="Crear rutina" onPress={handleCreateRoutinePress} style={styles.createButton} />
             </Card>
           )}
         </View>
@@ -393,17 +422,17 @@ const WorkoutsScreen = () => {
 
         {/* All Routines Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Tus rutinas ({routines.length})</Text>
-          {routines.length === 0 ? (
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Tus rutinas ({routinesSafe.length})</Text>
+          {routinesSafe.length === 0 ? (
             <Card style={styles.emptyState}>
               <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No hay rutinas</Text>
               <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>Crea una rutina o activa la que viene en Supabase</Text>
-              <Button title="Crear rutina" onPress={() => navigation.navigate('CreateRoutine' as never)} style={styles.createButton} />
+              <Button title="Crear rutina" onPress={handleCreateRoutinePress} style={styles.createButton} />
             </Card>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4, gap: 12 }}>
-              {routines.map((routine: WeeklyRoutine) => {
+              {routinesSafe.map((routine: WeeklyRoutine) => {
                 const totalExercises = Object.values(routine.weeklyPlan).reduce((total, day) => total + ((day as DayWorkout | undefined)?.exercises?.length || 0), 0);
                 return (
                   <Card key={routine.id} style={[styles.routineCardWide, { width: width * 0.78 }]}> 
