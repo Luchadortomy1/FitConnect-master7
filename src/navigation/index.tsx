@@ -155,12 +155,11 @@ const WorkoutNavigator = () => {
 
 // Store Stack Navigator
 const StoreNavigator = () => {
-  
   return (
     <StoreStack.Navigator
+      initialRouteName="StoreList"
       screenOptions={{
         headerShown: false,
-        // Preserve state so we don't lose the stack when navigating from other tabs
         preserveState: true,
       }}
     >
@@ -308,7 +307,16 @@ const MainNavigator = () => {
     >
       <MainTab.Screen name="Home" component={HomeScreen} />
       <MainTab.Screen name="Workouts" component={WorkoutNavigator} />
-      <MainTab.Screen name="Store" component={StoreNavigator} />
+      <MainTab.Screen 
+        name="Store" 
+        component={StoreNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Always land on the store list when tapping the tab
+            navigation.navigate('Store', { screen: 'StoreList' });
+          },
+        })}
+      />
       <MainTab.Screen name="Gyms" component={GymNavigator} />
     </MainTab.Navigator>
   );

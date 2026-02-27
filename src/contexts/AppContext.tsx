@@ -1,11 +1,19 @@
 import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
 import { CartItem, NutritionEntry, WorkoutSession, Notification } from '@/types';
+
+interface ActiveTrainingSession {
+  routineId: string;
+  dayKey: string;
+  startTimestamp: number;
+  elapsedBeforePause: number;
+  isPaused: boolean;
+}
 import { notificationsApi } from '@/api/notifications';
 
 interface AppContextType {
   // Cart
   cart: CartItem[];
-  addToCart: (item: CartItem) => void;
+  addToCart: (item: CartItem) => boolean;
   removeFromCart: (supplementId: string) => void;
   updateCartQuantity: (supplementId: string, quantity: number) => void;
   clearCart: () => void;
@@ -20,6 +28,12 @@ interface AppContextType {
   startWorkout: (workoutId: string) => void;
   endWorkout: () => void;
   updateWorkoutProgress: (exerciseId: string, setIndex: number, data: { reps: number; weight: number }) => void;
+  activeTrainingSession: ActiveTrainingSession | null;
+  startTrainingSession: (payload: { routineId: string; dayKey: string }) => void;
+  pauseTrainingSession: () => void;
+  resumeTrainingSession: () => void;
+  finishTrainingSession: () => void;
+  getTrainingElapsedSeconds: () => number;
   
   // Notifications
   notifications: Notification[];
@@ -47,12 +61,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     water: 2.1,
   });
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
+  const [activeTrainingSession, setActiveTrainingSession] = useState<ActiveTrainingSession | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // Cart functions
-  const addToCart = (item: CartItem) => {
+  const addToCart = (item: CartItem): boolean => {
+    let added = false;
+
     setCart(prevCart => {
       const existingItem = prevCart.find(cartItem => cartItem.supplement.id === item.supplement.id);
+      const currentQty = existingItem ? existingItem.quantity : 0;
+      const stock = item.supplement.stock;
+
+      if (typeof stock === 'number' && stock >= 0 && currentQty + item.quantity > stock) {
+        return prevCart; // no change, exceeds stock
+      }
+
+      added = true;
+
       if (existingItem) {
         return prevCart.map(cartItem =>
           cartItem.supplement.id === item.supplement.id
@@ -60,8 +86,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             : cartItem
         );
       }
+
       return [...prevCart, item];
     });
+
+    return added;
   };
 
   const removeFromCart = (supplementId: string) => {
@@ -148,6 +177,53 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     });
   };
 
+  // Training session timer helpers
+  const startTrainingSession = ({ routineId, dayKey }: { routineId: string; dayKey: string }) => {
+    setActiveTrainingSession({
+      routineId,
+      dayKey,
+      startTimestamp: Date.now(),
+      elapsedBeforePause: 0,
+      isPaused: false,
+    });
+  };
+
+  const pauseTrainingSession = () => {
+    setActiveTrainingSession(prev => {
+      if (!prev || prev.isPaused) return prev;
+      const elapsed = prev.elapsedBeforePause + (Date.now() - prev.startTimestamp) / 1000;
+      return {
+        ...prev,
+        isPaused: true,
+        startTimestamp: prev.startTimestamp,
+        elapsedBeforePause: elapsed,
+      };
+    });
+  };
+
+  const resumeTrainingSession = () => {
+    setActiveTrainingSession(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        isPaused: false,
+        startTimestamp: Date.now(),
+      };
+    });
+  };
+
+  const finishTrainingSession = () => {
+    setActiveTrainingSession(null);
+  };
+
+  const getTrainingElapsedSeconds = () => {
+    if (!activeTrainingSession) return 0;
+    const base = activeTrainingSession.elapsedBeforePause;
+    if (activeTrainingSession.isPaused) return Math.floor(base);
+    const running = (Date.now() - activeTrainingSession.startTimestamp) / 1000;
+    return Math.floor(base + running);
+  };
+
   // Notification functions
   const markNotificationAsRead = async (notificationId: string) => {
     // Update local state immediately for better UX
@@ -226,12 +302,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     startWorkout,
     endWorkout,
     updateWorkoutProgress,
+    activeTrainingSession,
+    startTrainingSession,
+    pauseTrainingSession,
+    resumeTrainingSession,
+    finishTrainingSession,
+    getTrainingElapsedSeconds,
     notifications,
     markNotificationAsRead,
     addNotification,
     deleteNotification,
     loadNotifications,
-  }), [cart, cartTotal, todayNutrition, activeWorkout, notifications]);
+  }), [cart, cartTotal, todayNutrition, activeWorkout, notifications, activeTrainingSession]);
 
   return (
     <AppContext.Provider value={value}>

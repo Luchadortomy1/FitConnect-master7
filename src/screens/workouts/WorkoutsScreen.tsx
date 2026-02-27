@@ -19,6 +19,7 @@ import { WeeklyRoutine, DayWorkout, WeekDay } from '@/types';
 import { routinesApi } from '@/api/routines';
 import { workoutSessionsApi } from '@/api/workoutSessions';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 
 const { width } = Dimensions.get('window');
 
@@ -47,6 +48,7 @@ const WorkoutsScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { activeTrainingSession } = useApp();
   const [routines, setRoutines] = useState<WeeklyRoutine[]>([]);
   const [activeRoutine, setActiveRoutine] = useState<WeeklyRoutine | null>(null);
   const [loading, setLoading] = useState(true);
@@ -225,8 +227,16 @@ const WorkoutsScreen = () => {
     return 'fitness-outline';
   };
 
+  const today = useMemo(() => getCurrentDay(), []);
+  const todayWorkout = activeRoutine?.weeklyPlan[today];
+  const isCurrentSessionActive = useMemo(() => {
+    if (!activeTrainingSession || !activeRoutine) return false;
+    return activeTrainingSession.routineId === activeRoutine.id && activeTrainingSession.dayKey === today;
+  }, [activeTrainingSession, activeRoutine, today]);
+
   const getButtonTitle = (): string => {
     if (todaysSessions.length > 0) return '✓ Completado';
+    if (isCurrentSessionActive) return 'Continuar';
     if (todayWorkout) return 'Empezar';
     return 'Ver semana';
   };
@@ -237,8 +247,7 @@ const WorkoutsScreen = () => {
     return 'Libre';
   };
 
-  const today = useMemo(() => getCurrentDay(), []);
-  const todayWorkout = activeRoutine?.weeklyPlan[today];
+  
 
   if (loading) {
     return (

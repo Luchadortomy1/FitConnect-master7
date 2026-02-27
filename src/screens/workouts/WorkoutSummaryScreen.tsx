@@ -113,7 +113,7 @@ const WorkoutSummaryScreen = () => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header 
         title="Resumen de Entrenamiento"
-        showBack={false}
+        showBack
       />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>

@@ -42,7 +42,7 @@ const HomeScreen = () => {
   const { colors } = useTheme();
   const { user } = useAuth();
   const navigation = useNavigation();
-  const { notifications, addNotification, loadNotifications } = useApp();
+  const { notifications, addNotification } = useApp();
   
   const [todayWorkout, setTodayWorkout] = useState<DayWorkout | null>(null);
   const [recommendedSupplements, setRecommendedSupplements] = useState<Supplement[]>([]);
@@ -201,18 +201,13 @@ const HomeScreen = () => {
     checkAndAddExpirationNotifications();
   }, [user]);
 
-  // Recargar datos cuando la pantalla se enfoca - y chequear notificaciones
+  // Recargar datos cuando la pantalla se enfoca - y chequear notificaciones de expiración
   useFocusEffect(
     React.useCallback(() => {
-      const load = async () => {
-        loadDashboardData(false);
-        // Chequear notificaciones de expiración cuando vuelve a esta pantalla
-        await checkAndAddExpirationNotifications();
-        // Cargar todas las notificaciones de la BD (nuevos productos, nuevos gyms, etc.)
-        await loadNotifications();
-      };
-      load();
-    }, [loadNotifications])
+      loadDashboardData(false);
+      // Chequear notificaciones de expiración cuando vuelve a esta pantalla
+      checkAndAddExpirationNotifications();
+    }, [])
   );
 
   const getGreeting = (): string => {

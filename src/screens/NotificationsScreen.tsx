@@ -14,6 +14,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
 import { Notification } from '@/types';
 import { gymsApi } from '@/api';
+import { Header } from '@/components/Header';
 
 const NotificationsScreen = () => {
   const { colors } = useTheme();
@@ -207,11 +208,7 @@ const NotificationsScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Notificaciones
-        </Text>
-      </View>
+      <Header title="Notificaciones" showBack />
 
       {notifications.length === 0 ? (
         <EmptyNotifications />
@@ -231,15 +228,6 @@ const NotificationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
   },
   listContainer: {
     padding: 12,

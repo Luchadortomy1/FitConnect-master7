@@ -21,6 +21,7 @@ import { DayWorkout, DayExercise } from '@/types';
 import { routinesApi } from '@/api/routines';
 import { getExerciseImageSource, buildYoutubeSearchUrl, slugifyExercise } from '@/utils/exerciseMedia';
 import { fetchExerciseImage } from '@/api/exerciseMediaApi';
+import { useApp } from '@/contexts/AppContext';
 
 interface RouteParams {
   dayWorkout: DayWorkout;
@@ -35,7 +36,9 @@ const DayWorkoutScreen = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
+  const { activeTrainingSession, startTrainingSession, pauseTrainingSession, resumeTrainingSession, finishTrainingSession, getTrainingElapsedSeconds } = useApp();
   const { dayWorkout, dayName, routineId, dayKey } = route.params as RouteParams;
+  const isCurrentSessionActive = Boolean(activeTrainingSession && activeTrainingSession.routineId === routineId && activeTrainingSession.dayKey === dayKey);
   
   const [workout, setWorkout] = useState<DayWorkout>(dayWorkout);
   const [isTrainingMode, setIsTrainingMode] = useState(false);
@@ -43,7 +46,6 @@ const DayWorkoutScreen = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [tempExercise, setTempExercise] = useState<DayExercise | null>(null);
   const [editingExercise, setEditingExercise] = useState<string | null>(null);
-  const [trainingStartTime, setTrainingStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
   const [remoteMedia, setRemoteMedia] = useState<Record<string, string | null>>({});
@@ -60,16 +62,34 @@ const DayWorkoutScreen = () => {
 
   // Timer effect - actualizar tiempo transcurrido cada segundo
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isTrainingMode && trainingStartTime) {
-      interval = setInterval(() => {
-        const now = new Date();
-        const time = Math.floor((now.getTime() - trainingStartTime.getTime()) / 1000);
-        setElapsedTime(time);
-      }, 1000);
+    // Restore state when returning to screen
+    if (activeTrainingSession && activeTrainingSession.routineId === routineId && activeTrainingSession.dayKey === dayKey) {
+      setIsTrainingMode(true);
+      setElapsedTime(getTrainingElapsedSeconds());
+    } else if (!activeTrainingSession) {
+      setIsTrainingMode(false);
+      setElapsedTime(0);
     }
-    return () => clearInterval(interval);
-  }, [isTrainingMode, trainingStartTime]);
+  }, [activeTrainingSession, routineId, dayKey, getTrainingElapsedSeconds]);
+
+  useEffect(() => {
+    // keep timer in sync with global activeTrainingSession
+    let interval: NodeJS.Timeout | undefined;
+
+    const syncElapsed = () => {
+      setElapsedTime(getTrainingElapsedSeconds());
+    };
+
+    syncElapsed();
+
+    if (activeTrainingSession && !activeTrainingSession.isPaused) {
+      interval = setInterval(syncElapsed, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTrainingSession, getTrainingElapsedSeconds]);
 
   // Reload routine data when screen is focused (after adding exercises)
   useFocusEffect(
@@ -91,8 +111,9 @@ const DayWorkoutScreen = () => {
   );
 
   const handleStartTraining = () => {
+    startTrainingSession({ routineId, dayKey });
     setIsTrainingMode(true);
-    setTrainingStartTime(new Date());
+    setElapsedTime(0);
     Alert.alert(
       'Entrenamiento iniciado',
       'Marca cada serie como completada cuando termines'
@@ -140,6 +161,8 @@ const DayWorkoutScreen = () => {
       routineId,
       dayKey
     } as never);
+
+    finishTrainingSession();
   };
 
   const toggleSetCompleted = (exerciseId: string, setIndex: number) => {
@@ -383,7 +406,7 @@ const DayWorkoutScreen = () => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title={dayName}
-        showBack
+        showBack={!isTrainingMode}
         rightComponent={
           !isTrainingMode ? (
             <TouchableOpacity
@@ -540,18 +563,33 @@ const DayWorkoutScreen = () => {
         <View style={[styles.trainingControls, { backgroundColor: colors.surface }]}>
           {!isTrainingMode ? (
             <Button
-              title="Comenzar Entrenamiento"
-              onPress={handleStartTraining}
+              title={isCurrentSessionActive ? "Continuar entrenamiento" : "Comenzar Entrenamiento"}
+              onPress={() => {
+                if (isCurrentSessionActive) {
+                  resumeTrainingSession();
+                  setIsTrainingMode(true);
+                  setElapsedTime(getTrainingElapsedSeconds());
+                } else {
+                  handleStartTraining();
+                }
+              }}
               style={styles.trainingButton}
               icon={<Ionicons name="play" size={16} color="white" />}
             />
           ) : (
             <View style={styles.trainingButtonsRow}>
               <Button
-                title="Pausar"
-                onPress={() => setIsTrainingMode(false)}
+                title={activeTrainingSession?.isPaused ? "Reanudar" : "Pausar"}
+                onPress={() => {
+                  if (activeTrainingSession?.isPaused) {
+                    resumeTrainingSession();
+                  } else {
+                    pauseTrainingSession();
+                  }
+                  setElapsedTime(getTrainingElapsedSeconds());
+                }}
                 style={[styles.trainingButton, { backgroundColor: colors.warning }]}
-                icon={<Ionicons name="pause" size={16} color="white" />}
+                icon={<Ionicons name={activeTrainingSession?.isPaused ? "play" : "pause"} size={16} color="white" />}
               />
               <Button
                 title="Finalizar"

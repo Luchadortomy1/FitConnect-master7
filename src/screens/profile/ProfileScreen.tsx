@@ -71,6 +71,7 @@ const ProfileScreen = () => {
   });
   const [loading, setLoading] = useState(false);
   const [macros, setMacros] = useState<MacroResult | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ weight?: string; height?: string; name?: string; age?: string }>({});
 
   useEffect(() => {
     if (user) {
@@ -88,64 +89,73 @@ const ProfileScreen = () => {
 
   // Calculate macros whenever weight, height, age, gender, goal, or activity level changes
   useEffect(() => {
-    try {
-      const age = Number.parseInt(formData.age, 10);
-      const weight = Number.parseFloat(formData.weight);
-      const height = Number.parseFloat(formData.height);
+    const age = Number.parseInt(formData.age, 10);
+    const weight = Number.parseFloat(formData.weight);
+    const height = Number.parseFloat(formData.height);
 
-      if (weight && height && age && !Number.isNaN(age) && !Number.isNaN(weight) && !Number.isNaN(height)) {
-        const macroResult = calculateMacrosForUser({
-          weight,
-          height,
-          age,
-          gender: formData.gender as 'male' | 'female',
-          activityLevel: formData.activityLevel as 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active',
-          goal: formData.goal as 'lose_weight' | 'gain_muscle' | 'maintain',
-        });
-        setMacros(macroResult);
-      }
-    } catch (error) {
-      console.error('Error calculating macros:', error);
+    const hasRequired = formData.weight.trim() && formData.height.trim() && formData.age.trim();
+    const hasNumbers = !Number.isNaN(age) && !Number.isNaN(weight) && !Number.isNaN(height);
+    const inRange = weight >= 20 && weight <= 300 && height >= 100 && height <= 250 && age >= 1 && age <= 120;
+
+    if (!hasRequired || !hasNumbers || !inRange) {
       setMacros(null);
+      return;
     }
+
+    const macroResult = calculateMacrosForUser({
+      weight,
+      height,
+      age,
+      gender: formData.gender as 'male' | 'female',
+      activityLevel: formData.activityLevel as 'sedentary' | 'light' | 'moderate' | 'very_active' | 'extra_active',
+      goal: formData.goal as 'lose_weight' | 'gain_muscle' | 'maintain',
+    });
+
+    setMacros(macroResult);
   }, [formData.weight, formData.height, formData.age, formData.gender, formData.goal, formData.activityLevel]);
 
   const handleSave = async () => {
+    setLoading(true);
+    const errors: { weight?: string; height?: string; name?: string; age?: string } = {};
+
+    if (!formData.name.trim()) {
+      errors.name = 'El nombre es obligatorio';
+    }
+
+    const age = formData.age ? Number.parseInt(formData.age, 10) : undefined;
+    const weight = formData.weight ? Number.parseFloat(formData.weight) : undefined;
+    const height = formData.height ? Number.parseFloat(formData.height) : undefined;
+
+    if (formData.age && (Number.isNaN(age) || age < 1 || age > 120)) {
+      errors.age = 'La edad debe ser entre 1 y 120';
+    }
+
+    if (!formData.weight.trim()) {
+      errors.weight = 'El peso es obligatorio';
+    } else if (Number.isNaN(weight!) || weight! < 20 || weight! > 300) {
+      errors.weight = 'El peso debe ser entre 20 y 300 kg';
+    }
+
+    if (!formData.height.trim()) {
+      errors.height = 'La altura es obligatoria';
+    } else if (Number.isNaN(height!) || height! < 100 || height! > 250) {
+      errors.height = 'La altura debe ser entre 100 y 250 cm';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      setLoading(false);
+      return;
+    }
+
+    setValidationErrors({});
+
     try {
-      setLoading(true);
-
-      // Validate required fields
-      if (!formData.name.trim()) {
-        Alert.alert('Error', 'El nombre es requerido');
-        return;
-      }
-
-      // Convert strings to numbers and validate
-      const age = Number.parseInt(formData.age, 10);
-      const weight = Number.parseFloat(formData.weight);
-      const height = Number.parseFloat(formData.height);
-
-      if (formData.age && (Number.isNaN(age) || age < 1 || age > 120)) {
-        Alert.alert('Error', 'La edad debe ser un número válido entre 1 y 120');
-        return;
-      }
-
-      if (formData.weight && (Number.isNaN(weight) || weight < 20 || weight > 300)) {
-        Alert.alert('Error', 'El peso debe ser un número válido entre 20 y 300 kg');
-        return;
-      }
-
-      if (formData.height && (Number.isNaN(height) || height < 100 || height > 250)) {
-        Alert.alert('Error', 'La altura debe ser un número válido entre 100 y 250 cm');
-        return;
-      }
-
-      // Update user data
       const updatedUserData: Partial<User> = {
         name: formData.name.trim(),
-        age: formData.age ? age : undefined,
-        weight: formData.weight ? weight : undefined,
-        height: formData.height ? height : undefined,
+        age: age,
+        weight: weight,
+        height: height,
         gender: formData.gender as 'male' | 'female',
         goal: formData.goal,
         activityLevel: formData.activityLevel,
@@ -211,12 +221,6 @@ const ProfileScreen = () => {
             onPress={() => navigation.navigate('Progress' as never)}
           >
             <Ionicons name="trending-up-outline" size={24} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.headerButton}
-            onPress={() => navigation.navigate('Settings' as never)}
-          >
-            <Ionicons name="settings-outline" size={24} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.headerButton}
@@ -289,36 +293,60 @@ const ProfileScreen = () => {
               <Input
                 label="Nombre de usuario"
                 value={formData.name}
-                onChangeText={(text) => setFormData({ ...formData, name: text })}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, name: text });
+                  if (validationErrors.name) {
+                    setValidationErrors((prev) => ({ ...prev, name: undefined }));
+                  }
+                }}
                 placeholder="Ingresa tu nombre"
                 editable={editing}
+                error={validationErrors.name}
               />
 
               <Input
                 label="Edad (años)"
                 value={formData.age}
-                onChangeText={(text) => setFormData({ ...formData, age: text })}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, age: text });
+                  if (validationErrors.age) {
+                    setValidationErrors((prev) => ({ ...prev, age: undefined }));
+                  }
+                }}
                 placeholder="Ingresa tu edad"
                 keyboardType="numeric"
                 editable={editing}
+                error={validationErrors.age}
               />
 
               <Input
                 label="Peso (kg)"
                 value={formData.weight}
-                onChangeText={(text) => setFormData({ ...formData, weight: text })}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, weight: text });
+                  if (validationErrors.weight) {
+                    setValidationErrors((prev) => ({ ...prev, weight: undefined }));
+                  }
+                }}
                 placeholder="Ingresa tu peso"
                 keyboardType="decimal-pad"
                 editable={editing}
+                error={validationErrors.weight}
               />
 
               <Input
                 label="Altura (cm)"
                 value={formData.height}
-                onChangeText={(text) => setFormData({ ...formData, height: text })}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, height: text });
+                  if (validationErrors.height) {
+                    setValidationErrors((prev) => ({ ...prev, height: undefined }));
+                  }
+                }}
                 placeholder="Ingresa tu altura"
                 keyboardType="numeric"
                 editable={editing}
+                error={validationErrors.height}
               />
 
               {editing && (

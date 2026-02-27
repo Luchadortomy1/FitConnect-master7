@@ -55,19 +55,38 @@ const ProductDetailScreen = () => {
   };
 
   const handleAddToCart = () => {
-    if (product) {
-      addToCart({ supplement: product, quantity });
-      Alert.alert('Éxito', `${quantity} ${quantity > 1 ? 'productos' : 'producto'} añadido al carrito`, [
-        {
-          text: 'Continuar comprando',
-          onPress: () => navigation.goBack(),
-        },
-        {
-          text: 'Ir al carrito',
-          onPress: () => navigation.navigate('Store' as never, { screen: 'Cart' } as never),
-        },
-      ]);
+    if (!product) return;
+
+    const stock = typeof product.stock === 'number' ? product.stock : Infinity;
+
+    if (stock <= 0) {
+      Alert.alert('Sin stock', 'Este producto no está disponible actualmente');
+      return;
     }
+
+    if (quantity > stock) {
+      setQuantity(stock);
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
+    const success = addToCart({ supplement: product, quantity });
+
+    if (!success) {
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
+    Alert.alert('Éxito', `${quantity} ${quantity > 1 ? 'productos' : 'producto'} añadido al carrito`, [
+      {
+        text: 'Continuar comprando',
+        onPress: () => navigation.goBack(),
+      },
+      {
+        text: 'Ir al carrito',
+        onPress: () => navigation.navigate('Store' as never, { screen: 'Cart' } as never),
+      },
+    ]);
   };
 
   if (loading) {
@@ -117,28 +136,39 @@ const ProductDetailScreen = () => {
         {/* Product Info */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
+          {/** Force rating to 0 if none */}
+          {(() => {
+            const rating = Math.max(0, product.rating || 0);
+            const reviews = product.reviews || 0;
           
-          {/* Rating */}
-          <View style={styles.ratingContainer}>
-            <View style={styles.starsContainer}>
-              {[...Array(5)].map((_, i) => (
-                <Ionicons
-                  key={i}
-                  name={i < Math.floor(product.rating) ? 'star' : 'star-outline'}
-                  size={16}
-                  color="#FFD700"
-                />
-              ))}
-            </View>
-            <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-              {product.rating.toFixed(1)} ({product.reviews} reviews)
-            </Text>
-          </View>
+            return (
+              <View style={styles.ratingContainer}>
+                <View style={styles.starsContainer}>
+                  {[...Array(5)].map((_, i) => (
+                    <Ionicons
+                      key={i}
+                      name={i < Math.floor(rating) ? 'star' : 'star-outline'}
+                      size={16}
+                      color="#FFD700"
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
+                  {rating.toFixed(1)} ({reviews} reviews)
+                </Text>
+              </View>
+            );
+          })()}
 
           {/* Price */}
           <Text style={[styles.price, { color: colors.primary }]}>
             ${product.price.toFixed(2)}
           </Text>
+          {typeof product.stock === 'number' && (
+            <Text style={[styles.stockText, { color: colors.textSecondary }]}>
+              Stock disponible: {product.stock}
+            </Text>
+          )}
         </View>
 
         {/* Description */}
@@ -147,19 +177,6 @@ const ProductDetailScreen = () => {
           <Text style={[styles.description, { color: colors.textSecondary }]}>
             {product.description}
           </Text>
-        </View>
-
-        {/* Serving Info */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Información de Servicio</Text>
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Tamaño de porción:</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{product.servingSize || 'N/A'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Porciones por contenedor:</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{product.servingsPerContainer || 'N/A'}</Text>
-          </View>
         </View>
 
         {/* Ingredients */}
@@ -190,15 +207,25 @@ const ProductDetailScreen = () => {
             
             <TouchableOpacity
               style={[styles.quantityButton, { borderColor: colors.border }]}
-              onPress={() => setQuantity(quantity + 1)}
+              onPress={() => {
+                const stock = typeof product.stock === 'number' ? product.stock : Infinity;
+                setQuantity((prev) => {
+                  const next = prev + 1;
+                  return stock === Infinity ? next : Math.min(stock, next);
+                });
+              }}
             >
               <Ionicons name="add" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.addToCartButton,
+              { backgroundColor: product.stock === 0 ? colors.border : colors.primary }
+            ]}
             onPress={handleAddToCart}
+            disabled={product.stock === 0}
           >
             <Ionicons name="cart-outline" size={20} color="white" />
             <Text style={styles.addToCartText}>
@@ -290,6 +317,10 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
   },
+  stockText: {
+    fontSize: 14,
+    marginTop: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -298,21 +329,6 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     lineHeight: 22,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-  },
-  infoLabel: {
-    fontSize: 14,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   ingredientItem: {
     flexDirection: 'row',

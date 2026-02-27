@@ -120,8 +120,26 @@ const StoreScreen = () => {
   };
 
   const handleAddToCart = (supplement: Supplement) => {
-    const cartItem = { supplement, quantity: 1 };
-    addToCart(cartItem);
+    const cartCount = getCartItemCount(supplement.id);
+    const stock = typeof supplement.stock === 'number' ? supplement.stock : Infinity;
+
+    if (stock <= 0) {
+      Alert.alert('Sin stock', 'Este producto no está disponible actualmente');
+      return;
+    }
+
+    if (cartCount >= stock) {
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
+    const success = addToCart({ supplement, quantity: 1 });
+
+    if (!success) {
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
     Alert.alert(
       'Agregado al carrito',
       `${supplement.name} ha sido agregado a tu carrito`,
@@ -137,9 +155,25 @@ const StoreScreen = () => {
   };
 
   const handleBuyNow = (supplement: Supplement) => {
-    // Add to cart and go directly to cart
-    const cartItem = { supplement, quantity: 1 };
-    addToCart(cartItem);
+    const cartCount = getCartItemCount(supplement.id);
+    const stock = typeof supplement.stock === 'number' ? supplement.stock : Infinity;
+
+    if (stock <= 0) {
+      Alert.alert('Sin stock', 'Este producto no está disponible actualmente');
+      return;
+    }
+
+    if (cartCount >= stock) {
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
+    const success = addToCart({ supplement, quantity: 1 });
+    if (!success) {
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
     navigation.navigate('Cart' as never);
   };
 
@@ -250,12 +284,18 @@ const StoreScreen = () => {
             <Text style={[styles.productPrice, { color: colors.primary }]}>
               ${supplement.price.toFixed(2)}
             </Text>
+            {typeof supplement.stock === 'number' && (
+              <Text style={[styles.stockText, { color: colors.textSecondary }]}>
+                Stock: {supplement.stock}
+              </Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.addToCartButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}
               onPress={() => handleAddToCart(supplement)}
+              disabled={supplement.stock === 0}
             >
               <Ionicons name="cart-outline" size={18} color={colors.primary} />
               <Text style={[styles.addToCartText, { color: colors.primary }]}>
@@ -266,6 +306,7 @@ const StoreScreen = () => {
             <TouchableOpacity
               style={[styles.buyNowButton, { backgroundColor: colors.primary }]}
               onPress={() => handleBuyNow(supplement)}
+              disabled={supplement.stock === 0}
             >
               <Text style={styles.buyNowText}>Comprar</Text>
             </TouchableOpacity>
@@ -568,6 +609,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
+  },
+  stockText: {
+    fontSize: 12,
+    marginTop: 4,
   },
   actionButtons: {
     flexDirection: 'row',

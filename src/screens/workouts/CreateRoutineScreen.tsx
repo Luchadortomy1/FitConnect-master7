@@ -176,6 +176,7 @@ const CreateRoutineScreen = () => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header 
         title="Crear Nueva Rutina"
+        showBack
         rightAction={{
           icon: (
             <Text style={[

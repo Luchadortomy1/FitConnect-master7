@@ -196,6 +196,7 @@ const AddExerciseScreen = () => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header 
         title={`Agregar Ejercicio`}
+        showBack
         subtitle={dayWorkout.name}
       />
 

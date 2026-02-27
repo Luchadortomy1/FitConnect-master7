@@ -15,6 +15,7 @@ const mockSupplements: Supplement[] = [
     ingredients: ['Whey Protein Isolate', 'Natural Flavors', 'Lecithin', 'Stevia'],
     servingSize: '1 scoop (30g)',
     servingsPerContainer: 33,
+    stock: 25,
   },
   {
     id: '2',
@@ -28,6 +29,7 @@ const mockSupplements: Supplement[] = [
     ingredients: ['Caffeine', 'Beta-Alanine', 'L-Citrulline', 'Creatine Monohydrate'],
     servingSize: '1 scoop (15g)',
     servingsPerContainer: 20,
+    stock: 18,
   },
   {
     id: '3',
@@ -41,6 +43,7 @@ const mockSupplements: Supplement[] = [
     ingredients: ['100% Pure Creatine Monohydrate'],
     servingSize: '1 scoop (5g)',
     servingsPerContainer: 100,
+    stock: 40,
   },
   {
     id: '4',
@@ -54,6 +57,7 @@ const mockSupplements: Supplement[] = [
     ingredients: ['L-Leucine', 'L-Isoleucine', 'L-Valine', 'Natural Flavors'],
     servingSize: '1 scoop (10g)',
     servingsPerContainer: 30,
+    stock: 30,
   },
   {
     id: '5',
@@ -67,6 +71,7 @@ const mockSupplements: Supplement[] = [
     ingredients: ['Vitamin A', 'Vitamin C', 'Vitamin D3', 'B-Complex', 'Zinc', 'Magnesium'],
     servingSize: '2 capsules',
     servingsPerContainer: 30,
+    stock: 50,
   },
   {
     id: '6',
@@ -80,6 +85,7 @@ const mockSupplements: Supplement[] = [
     ingredients: ['Green Tea Extract', 'L-Carnitine', 'Caffeine', 'Garcinia Cambogia'],
     servingSize: '2 capsules',
     servingsPerContainer: 30,
+    stock: 22,
   },
 ];
 
@@ -117,6 +123,7 @@ export const storeApi = {
         ingredients: [],
         servingSize: '',
         servingsPerContainer: 0,
+        stock: typeof product.stock === 'number' ? product.stock : 0,
       }));
     } catch (error) {
       console.error('Error getting gym supplements:', error);
@@ -160,6 +167,7 @@ export const storeApi = {
         ingredients: [],
         servingSize: '',
         servingsPerContainer: 0,
+        stock: typeof product.stock === 'number' ? product.stock : 0,
       }));
     } catch (error) {
       console.error('Error getting supplements from multiple gyms:', error);
@@ -194,6 +202,7 @@ export const storeApi = {
         ingredients: [],
         servingSize: '',
         servingsPerContainer: 0,
+        stock: typeof product.stock === 'number' ? product.stock : 0,
       }));
     } catch (error) {
       console.error('Error getting supplements:', error);
@@ -226,6 +235,7 @@ export const storeApi = {
         ingredients: data.ingredients || [],
         servingSize: data.serving_size || '',
         servingsPerContainer: data.servings_per_container || 0,
+        stock: typeof data.stock === 'number' ? data.stock : 0,
       };
     } catch (error) {
       console.error('Error getting supplement:', error);

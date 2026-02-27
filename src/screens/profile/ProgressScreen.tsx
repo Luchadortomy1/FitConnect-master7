@@ -120,7 +120,7 @@ const ProgressScreen = () => {
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Header title="Mi Progreso" />
+        <Header title="Mi Progreso" showBack />
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Cargando progreso...
@@ -132,7 +132,7 @@ const ProgressScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Mi Progreso" />
+      <Header title="Mi Progreso" showBack />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Stats Overview */}

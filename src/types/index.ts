@@ -79,6 +79,7 @@ export interface Supplement {
   ingredients: string[];
   servingSize: string;
   servingsPerContainer: number;
+  stock?: number;
 }
 
 export interface CartItem {

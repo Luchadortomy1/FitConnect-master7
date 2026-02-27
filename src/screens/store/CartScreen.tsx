@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CartItem } from '@/types';
 import { ordersApi } from '@/api/orders';
 import { initPaymentSheet, presentPaymentSheet } from '@stripe/stripe-react-native';
+import { Header } from '@/components/Header';
 
 const { width } = Dimensions.get('window');
 
@@ -42,6 +43,14 @@ const CartScreen = () => {
   };
 
   const handleIncreaseQuantity = (supplementId: string, currentQuantity: number) => {
+    const item = cart.find(ci => ci.supplement.id === supplementId);
+    const stock = item && typeof item.supplement.stock === 'number' ? item.supplement.stock : Infinity;
+
+    if (stock !== Infinity && currentQuantity >= stock) {
+      Alert.alert('Stock insuficiente', `Solo hay ${stock} unidades disponibles`);
+      return;
+    }
+
     updateCartQuantity(supplementId, currentQuantity + 1);
   };
 
@@ -61,6 +70,20 @@ const CartScreen = () => {
 
     if (cart.length === 0) {
       Alert.alert('Error', 'Tu carrito está vacío');
+      return;
+    }
+
+    // Validar stock antes de iniciar el flujo de pago
+    const outOfStock = cart.find(item => {
+      const stock = typeof item.supplement.stock === 'number' ? item.supplement.stock : Infinity;
+      return stock !== Infinity && item.quantity > stock;
+    });
+
+    if (outOfStock) {
+      Alert.alert(
+        'Stock insuficiente',
+        `${outOfStock.supplement.name} solo tiene ${outOfStock.supplement.stock ?? 0} unidades disponibles. Ajusta la cantidad antes de pagar.`
+      );
       return;
     }
 
@@ -236,11 +259,7 @@ const CartScreen = () => {
   if (cart.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Mi Carrito
-          </Text>
-        </View>
+        <Header title="Mi Carrito" showBack />
         <EmptyCart />
       </SafeAreaView>
     );
@@ -248,11 +267,7 @@ const CartScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Mi Carrito ({cart.length})
-        </Text>
-      </View>
+      <Header title={`Mi Carrito (${cart.length})`} showBack />
 
       <FlatList
         data={cart}
@@ -316,15 +331,6 @@ const CartScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
   },
   listContainer: {
     padding: 12,
