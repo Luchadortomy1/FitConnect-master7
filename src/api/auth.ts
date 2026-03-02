@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/supabase';
+import { routinesApi } from '@/api/routines';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -249,6 +250,21 @@ export const updateProfile = async (userId: string, profileData: any) => {
       updated_at: new Date().toISOString(),
     };
 
+    // Obtener el goal anterior del usuario
+    let previousGoal = null;
+    if (profileData.goal !== undefined) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('goal')
+          .eq('id', userId)
+          .single();
+        previousGoal = profile?.goal || null;
+      } catch (error) {
+        console.warn('Error fetching previous goal:', error);
+      }
+    }
+
     // Mapear campos al formato de la base de datos
     if (profileData.name !== undefined) updateData.full_name = profileData.name;
     if (profileData.age !== undefined) updateData.age = profileData.age;
@@ -271,6 +287,19 @@ export const updateProfile = async (userId: string, profileData: any) => {
     if (error) {
       console.error('Supabase update error:', error);
       throw error;
+    }
+
+    // Si el objetivo cambió, eliminar TODAS las rutinas del usuario
+    if (profileData.goal !== undefined && previousGoal && profileData.goal !== previousGoal) {
+      console.log('Objetivo cambió de:', previousGoal, 'a:', profileData.goal);
+      console.log('Eliminando TODAS las rutinas del usuario...');
+      
+      const deleteSuccess = await routinesApi.deleteAllRoutinesForUser(userId);
+      if (deleteSuccess) {
+        console.log('Todas las rutinas eliminadas exitosamente');
+      } else {
+        console.warn('Hubo un problema al eliminar las rutinas');
+      }
     }
 
     console.log('Profile updated successfully');

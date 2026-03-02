@@ -104,6 +104,85 @@ const setActiveFlag = async (routineId: string) => {
   }
 };
 
+const deleteRoutinesByGoal = async (userId: string, goal: string): Promise<boolean> => {
+  try {
+    // Obtener todas las rutinas del usuario con ese goal
+    const { data: routines, error: fetchError } = await supabase
+      .from('routines')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('goal', goal);
+
+    if (fetchError) {
+      console.error('Error fetching routines by goal:', fetchError);
+      return false;
+    }
+
+    if (!routines || routines.length === 0) {
+      return true; // No hay rutinas para eliminar
+    }
+
+    // Eliminar todas las rutinas encontradas
+    const routineIds = routines.map(r => r.id);
+    for (const routineId of routineIds) {
+      const { error: deleteError } = await supabase
+        .from('routines')
+        .delete()
+        .eq('id', routineId);
+
+      if (deleteError) {
+        console.error(`Error deleting routine ${routineId}:`, deleteError);
+        return false;
+      }
+    }
+
+    console.log(`${routineIds.length} rutinas con objetivo '${goal}' eliminadas`);
+    return true;
+  } catch (error) {
+    console.error('Error in deleteRoutinesByGoal:', error);
+    return false;
+  }
+};
+
+const deleteAllUserRoutines = async (userId: string): Promise<boolean> => {
+  try {
+    // Obtener todas las rutinas del usuario (sin filtrar por objetivo)
+    const { data: routines, error: fetchError } = await supabase
+      .from('routines')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (fetchError) {
+      console.error('Error fetching user routines:', fetchError);
+      return false;
+    }
+
+    if (!routines || routines.length === 0) {
+      return true; // No hay rutinas para eliminar
+    }
+
+    // Eliminar todas las rutinas encontradas
+    const routineIds = routines.map(r => r.id);
+    for (const routineId of routineIds) {
+      const { error: deleteError } = await supabase
+        .from('routines')
+        .delete()
+        .eq('id', routineId);
+
+      if (deleteError) {
+        console.error(`Error deleting routine ${routineId}:`, deleteError);
+        return false;
+      }
+    }
+
+    console.log(`${routineIds.length} rutinas eliminadas (todas las del usuario)`);
+    return true;
+  } catch (error) {
+    console.error('Error in deleteAllUserRoutines:', error);
+    return false;
+  }
+};
+
 export const routinesApi = {
   async getRoutines(): Promise<WeeklyRoutine[]> {
     return fetchRoutines();
@@ -148,12 +227,31 @@ export const routinesApi = {
       throw new Error('No user authenticated');
     }
 
+    // Obtener el goal actual del usuario
+    let userGoal = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('goal')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          userGoal = profile.goal;
+        }
+      }
+    } catch (error) {
+      console.warn('Error fetching user goal:', error);
+    }
+
     // Convertir el formato de la app al formato de la tabla routines
     const routineData = {
       user_id: userId,
       name: routine.name,
       description: routine.description || null,
-      goal: null,
+      goal: userGoal, // Guardar el goal actual del usuario
       level: null,
       content: {
         days: Object.entries(routine.weeklyPlan).map(([dayKey, dayWorkout]) => ({
@@ -299,6 +397,14 @@ export const routinesApi = {
     }
 
     return mapRoutineRow(updatedData as RoutineRow, false);
+  },
+
+  async deleteRoutinesByGoalForUser(userId: string, goal: string): Promise<boolean> {
+    return deleteRoutinesByGoal(userId, goal);
+  },
+
+  async deleteAllRoutinesForUser(userId: string): Promise<boolean> {
+    return deleteAllUserRoutines(userId);
   },
 };
 

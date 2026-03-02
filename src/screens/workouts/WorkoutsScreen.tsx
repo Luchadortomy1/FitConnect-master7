@@ -238,7 +238,7 @@ const WorkoutsScreen = () => {
     if (todaysSessions.length > 0) return '✓ Completado';
     if (isCurrentSessionActive) return 'Continuar';
     if (todayWorkout) return 'Empezar';
-    return 'Ver semana';
+    return 'Día libre, disfruta el descanso';
   };
 
   const getDaySubtitle = (isCompleted: boolean, workout?: DayWorkout): string => {
@@ -343,7 +343,7 @@ const WorkoutsScreen = () => {
                   <View style={styles.todayInfo}>
                     <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Hoy</Text>
                     <Text style={[styles.todayName, { color: colors.text }]} numberOfLines={1}>
-                      {todayWorkout ? todayWorkout.name : 'Sin sesión asignada'}
+                      {todayWorkout ? todayWorkout.name : 'Es tu día libre'}
                     </Text>
                     {todayWorkout && (
                       <Text style={[styles.todayMeta, { color: colors.textSecondary }]}>{todayWorkout.exercises.length} ejercicios · {todayWorkout.estimatedDuration || 60} min</Text>
@@ -363,6 +363,11 @@ const WorkoutsScreen = () => {
                   onPress={() => {
                     if (todayWorkout && todaysSessions.length === 0) {
                       handleDayPress(today, todayWorkout);
+                    } else if (!todayWorkout && todaysSessions.length === 0) {
+                      Alert.alert(
+                        '¡Día libre!',
+                        'Disfruta el descanso, lo merecés! 💪'
+                      );
                     }
                   }}
                 />
