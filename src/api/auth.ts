@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+// Legacy import keeps readAsStringAsync available; Expo SDK 54 marks the new API differently
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/supabase';
 import { routinesApi } from '@/api/routines';
 
@@ -103,6 +106,7 @@ export const login = async (email: string, password: string) => {
           id: data.user.id,
           email: data.user.email,
           name: profile?.full_name || '',
+          avatar: profile?.avatar_url || undefined,
           age: profile?.age || undefined,
           weight: profile?.weight || undefined,
           height: profile?.height || undefined,
@@ -135,9 +139,11 @@ export const signup = async (email: string, password: string, name: string) => {
         },
       },
     });
-
     if (error) {
-      throw error;
+      const friendly = error.message?.toLowerCase().includes('registered')
+        ? 'Este correo ya está registrado'
+        : error.message || 'Signup failed';
+      return { success: false, error: friendly };
     }
 
     if (data.user) {
@@ -178,7 +184,10 @@ export const signup = async (email: string, password: string, name: string) => {
     return { success: false, error: 'No user data received' };
   } catch (error: any) {
     console.error('Signup error:', error);
-    return { success: false, error: error.message || 'Signup failed' };
+    const friendly = error?.message?.toLowerCase().includes('registered')
+      ? 'Este correo ya está registrado'
+      : error?.message || 'Signup failed';
+    return { success: false, error: friendly };
   }
 };
 
@@ -225,6 +234,7 @@ export const getCurrentUser = async () => {
         id: user.id,
         email: user.email,
         name: profile?.full_name || '',
+        avatar: profile?.avatar_url || undefined,
         age: profile?.age || undefined,
         weight: profile?.weight || undefined,
         height: profile?.height || undefined,
@@ -276,6 +286,7 @@ export const updateProfile = async (userId: string, profileData: any) => {
     if (profileData.targetProtein !== undefined) updateData.target_protein = profileData.targetProtein;
     if (profileData.targetCarbs !== undefined) updateData.target_carbs = profileData.targetCarbs;
     if (profileData.targetFat !== undefined) updateData.target_fat = profileData.targetFat;
+    if (profileData.avatar !== undefined) updateData.avatar_url = profileData.avatar;
 
     console.log('Updating profile with data:', updateData);
 
@@ -307,5 +318,38 @@ export const updateProfile = async (userId: string, profileData: any) => {
   } catch (error: any) {
     console.error('Update profile error:', error);
     return { success: false, error: error.message || 'Update failed' };
+  }
+};
+
+export const uploadAvatar = async (userId: string, uri: string) => {
+  try {
+    const fileExt = uri.split('.').pop()?.split('?')[0] || 'jpg';
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    // Some platforms need the raw string value 'base64' instead of the enum
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as FileSystem.EncodingType });
+    const arrayBuffer = decode(base64);
+    const contentType = `image/${fileExt.toLowerCase() === 'png' ? 'png' : 'jpeg'}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatar')
+      .upload(filePath, arrayBuffer, {
+        contentType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('avatar')
+      .getPublicUrl(filePath);
+
+    return { success: true, url: publicUrlData.publicUrl };
+  } catch (error: any) {
+    console.error('Upload avatar error:', error);
+    return { success: false, error: error.message || 'Error uploading avatar' };
   }
 };

@@ -9,15 +9,18 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button, Input } from '@/components';
 import { User } from '@/types';
 import { calculateMacrosForUser, MacroCalculatorInput, MacroResult } from '@/utils/macroCalculator';
+import { uploadAvatar } from '@/api/auth';
 
 // BMI calculation function
 const calculateBMI = (weight: number, height: number): number => {
@@ -60,6 +63,7 @@ const ProfileScreen = () => {
   const { user, updateUser, logout } = useAuth();
   
   const [editing, setEditing] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     age: user?.age?.toString() || '',
@@ -192,6 +196,93 @@ const ProfileScreen = () => {
     setEditing(false);
   };
 
+  const ensureImagePermissions = async (mode: 'camera' | 'library') => {
+    if (mode === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para tomar una foto.');
+        return false;
+      }
+    }
+
+    const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (libraryStatus !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para elegir una imagen.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleAvatarUpload = async (uri: string) => {
+    if (!user?.id) {
+      Alert.alert('Sesión requerida', 'Necesitas iniciar sesión para actualizar tu foto.');
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const uploadResult = await uploadAvatar(user.id, uri);
+
+      if (!uploadResult.success || !uploadResult.url) {
+        Alert.alert('Error', uploadResult.error || 'No se pudo subir la imagen');
+        return;
+      }
+
+      const updateResult = await updateUser({ avatar: uploadResult.url });
+      if (!updateResult.success) {
+        Alert.alert('Error', updateResult.error || 'No se pudo actualizar la foto de perfil');
+        return;
+      }
+
+      Alert.alert('Listo', 'Foto de perfil actualizada');
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const openImagePicker = async (mode: 'camera' | 'library') => {
+    if (!user?.id) {
+      Alert.alert('Sesión requerida', 'Necesitas iniciar sesión para actualizar tu foto.');
+      return;
+    }
+
+    const hasPermission = await ensureImagePermissions(mode);
+    if (!hasPermission) return;
+
+    const pickerOptions: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    };
+
+    const result = mode === 'camera'
+      ? await ImagePicker.launchCameraAsync(pickerOptions)
+      : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    await handleAvatarUpload(result.assets[0].uri);
+  };
+
+  const handleAvatarPress = () => {
+    Alert.alert(
+      'Actualizar foto',
+      'Elige una opción',
+      [
+        { text: 'Tomar foto', onPress: () => openImagePicker('camera') },
+        { text: 'Elegir de galería', onPress: () => openImagePicker('library') },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
+
   // Calculate BMI if both weight and height are available
   const bmi = user?.weight && user?.height ? calculateBMI(user.weight, user.height) : null;
   const bmiInfo = bmi ? getBMIInterpretation(bmi) : null;
@@ -267,8 +358,16 @@ const ProfileScreen = () => {
                 <Ionicons name="person" size={50} color="white" />
               )}
             </View>
-            <TouchableOpacity style={[styles.editAvatarButton, { backgroundColor: colors.primary }]}>
-              <Ionicons name="camera" size={16} color="white" />
+            <TouchableOpacity
+              style={[styles.editAvatarButton, { backgroundColor: colors.primary, opacity: avatarUploading ? 0.7 : 1 }]}
+              onPress={handleAvatarPress}
+              disabled={avatarUploading}
+            >
+              {avatarUploading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name="camera" size={16} color="white" />
+              )}
             </TouchableOpacity>
           </View>
 
