@@ -99,8 +99,7 @@ export const storeApi = {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('gym_id', gymId)
-        .eq('is_active', true);
+        .eq('gym_id', gymId);
 
       if (error) {
         console.warn('Error fetching gym supplements, using mock data:', error);
@@ -124,6 +123,7 @@ export const storeApi = {
         servingSize: '',
         servingsPerContainer: 0,
         stock: typeof product.stock === 'number' ? product.stock : 0,
+        gym_id: product.gym_id,
       }));
     } catch (error) {
       console.error('Error getting gym supplements:', error);
@@ -143,8 +143,7 @@ export const storeApi = {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .in('gym_id', gymIds)
-        .eq('is_active', true);
+        .in('gym_id', gymIds);
 
       if (error) {
         console.warn('Error fetching supplements from multiple gyms, using mock data:', error);
@@ -168,6 +167,7 @@ export const storeApi = {
         servingSize: '',
         servingsPerContainer: 0,
         stock: typeof product.stock === 'number' ? product.stock : 0,
+        gym_id: product.gym_id,
       }));
     } catch (error) {
       console.error('Error getting supplements from multiple gyms:', error);
@@ -203,6 +203,7 @@ export const storeApi = {
         servingSize: '',
         servingsPerContainer: 0,
         stock: typeof product.stock === 'number' ? product.stock : 0,
+        gym_id: product.gym_id,
       }));
     } catch (error) {
       console.error('Error getting supplements:', error);
@@ -236,6 +237,7 @@ export const storeApi = {
         servingSize: data.serving_size || '',
         servingsPerContainer: data.servings_per_container || 0,
         stock: typeof data.stock === 'number' ? data.stock : 0,
+        gym_id: data.gym_id,
       };
     } catch (error) {
       console.error('Error getting supplement:', error);
@@ -352,7 +354,7 @@ export const storeApi = {
       // Primero obtener el stock actual
       const { data: product, error: fetchError } = await supabase
         .from('products')
-        .select('stock')
+        .select('stock, is_active')
         .eq('id', productId)
         .single();
 
@@ -363,19 +365,35 @@ export const storeApi = {
 
       const currentStock = product.stock || 0;
       const newStock = Math.max(0, currentStock - quantityDecrease);
+      const shouldDeactivate = newStock === 0 && product.is_active;
 
-      // Actualizar el stock
-      const { error: updateError } = await supabase
+      console.log(`Actualizando producto ${productId}: stock ${currentStock} -> ${newStock}, desactivar: ${shouldDeactivate}`);
+
+      // Actualizar el stock y potencialmente el estado activo
+      const updateData: any = { stock: newStock };
+      if (shouldDeactivate) {
+        updateData.is_active = false;
+        console.log(`Desactivando producto ${productId} porque stock llegó a 0`);
+      }
+
+      const { data: updatedProduct, error: updateError } = await supabase
         .from('products')
-        .update({ stock: newStock })
-        .eq('id', productId);
+        .update(updateData)
+        .eq('id', productId)
+        .select('id, stock, is_active');
 
       if (updateError) {
         console.error('Error updating product stock:', updateError);
         return false;
       }
 
-      console.log(`Stock actualizado para producto ${productId}: ${currentStock} -> ${newStock}`);
+      if (!updatedProduct || updatedProduct.length === 0) {
+        console.error('No se actualizó el producto:', productId);
+        return false;
+      }
+
+      const updated = updatedProduct[0];
+      console.log(`✓ Stock actualizado para producto ${productId}: ${currentStock} -> ${updated.stock}, is_active: ${updated.is_active}`);
       return true;
     } catch (error) {
       console.error('Error in updateProductStock:', error);

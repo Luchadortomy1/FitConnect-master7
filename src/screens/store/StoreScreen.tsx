@@ -181,33 +181,6 @@ const StoreScreen = () => {
     navigation.navigate('ProductDetail' as never, { productId: supplement.id } as never);
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons key={i} name="star" size={14} color="#FFD700" />
-      );
-    }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons key="half" name="star-half" size={14} color="#FFD700" />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Ionicons key={`empty-${i}`} name="star-outline" size={14} color="#FFD700" />
-      );
-    }
-
-    return stars;
-  };
-
   const getCartItemCount = (supplementId: string) => {
     const item = cart.find(item => item.supplement.id === supplementId);
     return item ? item.quantity : 0;
@@ -244,10 +217,14 @@ const StoreScreen = () => {
 
   const renderSupplementItem = ({ item: supplement }: { item: Supplement }) => {
     const cartCount = getCartItemCount(supplement.id);
+    const isOutOfStock = supplement.stock === 0;
     
     return (
-      <View style={[styles.productCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={() => handleProductPress(supplement)}>
+      <View style={[styles.productCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: isOutOfStock ? 0.5 : 1 }]}>
+        <TouchableOpacity 
+          onPress={() => handleProductPress(supplement)}
+          disabled={isOutOfStock}
+        >
           <Image
             source={{ uri: supplement.image }}
             style={styles.productImage}
@@ -255,15 +232,22 @@ const StoreScreen = () => {
           />
           
           {/* Badge for cart count */}
-          {cartCount > 0 && (
+          {cartCount > 0 && !isOutOfStock && (
             <View style={[styles.cartBadge, { backgroundColor: colors.primary }]}>
               <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+          
+          {/* No stock overlay */}
+          {isOutOfStock && (
+            <View style={styles.noStockOverlay}>
+              <Text style={styles.noStockText}>No hay stock</Text>
             </View>
           )}
         </TouchableOpacity>
 
         <View style={styles.productInfo}>
-          <TouchableOpacity onPress={() => handleProductPress(supplement)}>
+          <TouchableOpacity onPress={() => !isOutOfStock && handleProductPress(supplement)} disabled={isOutOfStock}>
             <Text style={[styles.productName, { color: colors.text }]} numberOfLines={2}>
               {supplement.name}
             </Text>
@@ -272,21 +256,17 @@ const StoreScreen = () => {
               {supplement.description}
             </Text>
             
-            <View style={styles.ratingContainer}>
-              <View style={styles.starsContainer}>
-                {renderStars(supplement.rating)}
-              </View>
-              <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                {supplement.rating} ({supplement.reviews})
-              </Text>
-            </View>
-            
             <Text style={[styles.productPrice, { color: colors.primary }]}>
               ${supplement.price.toFixed(2)}
             </Text>
             {typeof supplement.stock === 'number' && (
               <Text style={[styles.stockText, { color: colors.textSecondary }]}>
-                Stock: {supplement.stock}
+                {isOutOfStock
+                  ? 'Sin stock'
+                  : supplement.stock <= 3
+                  ? `Stock: ${supplement.stock} - ¡Queda poco!`
+                  : `Stock: ${supplement.stock}`
+                }
               </Text>
             )}
           </TouchableOpacity>
@@ -295,7 +275,7 @@ const StoreScreen = () => {
             <TouchableOpacity
               style={[styles.addToCartButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}
               onPress={() => handleAddToCart(supplement)}
-              disabled={supplement.stock === 0}
+              disabled={isOutOfStock}
             >
               <Ionicons name="cart-outline" size={18} color={colors.primary} />
               <Text style={[styles.addToCartText, { color: colors.primary }]}>
@@ -304,9 +284,9 @@ const StoreScreen = () => {
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.buyNowButton, { backgroundColor: colors.primary }]}
+              style={[styles.buyNowButton, { backgroundColor: isOutOfStock ? colors.border : colors.primary }]}
               onPress={() => handleBuyNow(supplement)}
-              disabled={supplement.stock === 0}
+              disabled={isOutOfStock}
             >
               <Text style={styles.buyNowText}>Comprar</Text>
             </TouchableOpacity>
@@ -579,6 +559,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  noStockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  noStockText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   productInfo: {
     padding: 12,
   },
@@ -593,18 +589,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 8,
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 4,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-  },
-  ratingText: {
-    fontSize: 12,
-  },
+
   productPrice: {
     fontSize: 18,
     fontWeight: 'bold',

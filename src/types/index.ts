@@ -80,6 +80,7 @@ export interface Supplement {
   servingSize: string;
   servingsPerContainer: number;
   stock?: number;
+  gym_id?: string;
 }
 
 export interface CartItem {
@@ -99,6 +100,8 @@ export interface Gym {
   rating?: number;
   priceRange: '$' | '$$' | '$$$';
   amenities: string[];
+  opening_time?: string;
+  closing_time?: string;
   openHours: {
     [key: string]: string;
   };

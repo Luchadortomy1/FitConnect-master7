@@ -34,6 +34,7 @@ const ProductDetailScreen = () => {
 
   useEffect(() => {
     loadProductDetails();
+    setQuantity(1); // Reset quantity when entering/changing product
   }, [productId]);
 
   const loadProductDetails = async () => {
@@ -136,38 +137,21 @@ const ProductDetailScreen = () => {
         {/* Product Info */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
-          {/** Force rating to 0 if none */}
-          {(() => {
-            const rating = Math.max(0, product.rating || 0);
-            const reviews = product.reviews || 0;
-          
-            return (
-              <View style={styles.ratingContainer}>
-                <View style={styles.starsContainer}>
-                  {[...Array(5)].map((_, i) => (
-                    <Ionicons
-                      key={i}
-                      name={i < Math.floor(rating) ? 'star' : 'star-outline'}
-                      size={16}
-                      color="#FFD700"
-                    />
-                  ))}
-                </View>
-                <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                  {rating.toFixed(1)} ({reviews} reviews)
-                </Text>
-              </View>
-            );
-          })()}
-
           {/* Price */}
           <Text style={[styles.price, { color: colors.primary }]}>
             ${product.price.toFixed(2)}
           </Text>
           {typeof product.stock === 'number' && (
-            <Text style={[styles.stockText, { color: colors.textSecondary }]}>
-              Stock disponible: {product.stock}
-            </Text>
+            <>
+              <Text style={[styles.stockText, { color: colors.textSecondary }]}>
+                Stock disponible: {product.stock}
+              </Text>
+              {product.stock <= 3 && (
+                <Text style={[styles.lowStockText, { color: colors.error }]}>
+                  {product.stock === 0 ? 'Sin stock' : '¡Queda poco!'}
+                </Text>
+              )}
+            </>
           )}
         </View>
 
@@ -301,18 +285,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    marginRight: 12,
-  },
-  ratingText: {
-    fontSize: 14,
-  },
   price: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -320,6 +292,11 @@ const styles = StyleSheet.create({
   stockText: {
     fontSize: 14,
     marginTop: 8,
+  },
+  lowStockText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 18,

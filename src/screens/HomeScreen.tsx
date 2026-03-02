@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, CommonActions } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/Header';
@@ -177,12 +177,11 @@ const HomeScreen = () => {
 
       // Filter supplements by recommended categories
       const filtered = allSupplements.filter(supplement => 
-        recommendedCategories.includes(supplement.category)
+        recommendedCategories.includes(supplement.category) && supplement.stock > 0
       );
 
-      // Return top 3 highest rated
-      const sortedSupplements = [...filtered].sort((a, b) => b.rating - a.rating);
-      return sortedSupplements.slice(0, 3);
+      // Return top 3
+      return filtered.slice(0, 3);
     } catch (error) {
       console.error('Error getting recommended supplements:', error);
       return [];
@@ -506,10 +505,20 @@ const HomeScreen = () => {
                   <Card key={supplement.id} style={styles.supplementCard}>
                     <TouchableOpacity
                       style={styles.supplementContent}
-                      onPress={() => navigation.navigate('Store' as never, { 
-                        screen: 'ProductDetail',
-                        params: { productId: supplement.id }
-                      } as never)}
+                      onPress={() => {
+                        // Navegar a Store con StoreList como base y ProductDetail encima
+                        navigation.dispatch(
+                          CommonActions.navigate({
+                            name: 'Store',
+                            state: {
+                              routes: [
+                                { name: 'StoreList' },
+                                { name: 'ProductDetail', params: { productId: supplement.id } }
+                              ]
+                            }
+                          })
+                        );
+                      }}
                     >
                       <Image 
                         source={{ uri: supplement.image }} 
@@ -520,15 +529,28 @@ const HomeScreen = () => {
                         <Text style={[styles.supplementName, { color: colors.text }]} numberOfLines={2}>
                           {supplement.name}
                         </Text>
-                        <View style={styles.supplementRating}>
-                          <Ionicons name="star" size={12} color="#FFD700" />
-                          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                            {supplement.rating.toFixed(1)}
-                          </Text>
-                        </View>
                         <Text style={[styles.supplementPrice, { color: colors.primary }]}>
                           ${supplement.price}
                         </Text>
+                        {typeof supplement.stock === 'number' && (
+                          <Text style={[
+                            styles.stockMessage,
+                            {
+                              color: supplement.stock === 0 
+                                ? colors.error
+                                : supplement.stock <= 3
+                                ? colors.error
+                                : colors.textSecondary
+                            }
+                          ]}>
+                            {supplement.stock === 0 
+                              ? 'Sin stock'
+                              : supplement.stock <= 3
+                              ? '¡Queda poco!'
+                              : ''
+                            }
+                          </Text>
+                        )}
                       </View>
                     </TouchableOpacity>
                   </Card>
@@ -887,18 +909,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     lineHeight: 18,
   },
-  supplementRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  },
-  ratingText: {
-    fontSize: 12,
-  },
+
   supplementPrice: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  stockMessage: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
   emptySupplementsCard: {
     alignItems: 'center',

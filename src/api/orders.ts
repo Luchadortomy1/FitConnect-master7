@@ -66,7 +66,8 @@ export const ordersApi = {
   async createOrder(
     userId: string,
     totalAmount: number,
-    items: Array<{ productId: string; quantity: number; price: number }>
+    items: Array<{ productId: string; quantity: number; price: number }>,
+    gymId?: string
   ): Promise<string | null> {
     try {
       // Crear la orden
@@ -76,6 +77,7 @@ export const ordersApi = {
           user_id: userId,
           total_amount: totalAmount,
           status: 'pending',
+          gym_id: gymId || null,
         })
         .select('id')
         .single();

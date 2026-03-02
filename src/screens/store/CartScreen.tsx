@@ -99,8 +99,11 @@ const CartScreen = () => {
         price: item.supplement.price,
       }));
 
+      // Obtener el gym_id del primer producto
+      const gymId = cart[0]?.supplement.gym_id;
+
       // Crear la orden
-      newOrderId = await ordersApi.createOrder(user.id, cartTotal, items);
+      newOrderId = await ordersApi.createOrder(user.id, cartTotal, items, gymId);
       if (!newOrderId) {
         throw new Error('No se pudo crear la orden');
       }
@@ -165,7 +168,10 @@ const CartScreen = () => {
         {
           text: 'OK',
           onPress: () => {
-            navigation.navigate('Store' as never, { screen: 'StoreList' } as never);
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Store' as never, params: { screen: 'StoreList' } as never }],
+            });
           },
         },
       ]);
@@ -259,7 +265,13 @@ const CartScreen = () => {
   if (cart.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Header title="Mi Carrito" showBack />
+        <Header 
+          title="Mi Carrito" 
+          leftAction={{
+            icon: <Ionicons name="chevron-back" size={28} color={colors.text} />,
+            onPress: () => navigation.goBack(),
+          }}
+        />
         <EmptyCart />
       </SafeAreaView>
     );
@@ -267,7 +279,13 @@ const CartScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title={`Mi Carrito (${cart.length})`} showBack />
+      <Header 
+        title={`Mi Carrito (${cart.length})`}
+        leftAction={{
+          icon: <Ionicons name="chevron-back" size={28} color={colors.text} />,
+          onPress: () => navigation.goBack(),
+        }}
+      />
 
       <FlatList
         data={cart}

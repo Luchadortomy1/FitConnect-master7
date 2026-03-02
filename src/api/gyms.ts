@@ -13,6 +13,8 @@ const GYM_SELECT = [
   'is_active',
   'created_at',
   'location',
+  'opening_time',
+  'closing_time',
 ].join(',');
 
 // Utility function to calculate distance between two coordinates
@@ -30,7 +32,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 const toGym = (row: any, userLocation?: { latitude: number; longitude: number }): Gym => {
-  const { id, name, address, phone, description, image } = row;
+  const { id, name, address, phone, description, image, opening_time, closing_time } = row;
 
   const coords = (() => {
     const location = row.location;
@@ -60,6 +62,8 @@ const toGym = (row: any, userLocation?: { latitude: number; longitude: number })
     website: undefined,
     priceRange: '$$',
     amenities: [],
+    opening_time: opening_time || undefined,
+    closing_time: closing_time || undefined,
     openHours: {},
     image: image || PLACEHOLDER_IMAGE,
     distance,

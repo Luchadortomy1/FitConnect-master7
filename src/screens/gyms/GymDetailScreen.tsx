@@ -325,40 +325,31 @@ const GymDetailScreen = () => {
     }
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Ionicons key={i} name="star" size={18} color="#FFD700" />
-      );
-    }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Ionicons key="half" name="star-half" size={18} color="#FFD700" />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Ionicons key={`empty-${i}`} name="star-outline" size={18} color="#FFD700" />
-      );
-    }
-
-    return stars;
-  };
-
   const formatOpeningHours = () => {
-    const today = new Date().toLocaleDateString('en', { weekday: 'long' });
-    const todayHours = gym.openHours[today];
-    
+    if (!gym.opening_time || !gym.closing_time) {
+      return {
+        today: 'Hours not available',
+        isOpen: false,
+      };
+    }
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+    const currentTimeInMinutes = currentHour * 60 + currentMin;
+
+    // Parse opening and closing times (assuming format HH:MM)
+    const [openHour, openMin] = gym.opening_time.split(':').map(Number);
+    const [closeHour, closeMin] = gym.closing_time.split(':').map(Number);
+
+    const openingTimeInMinutes = openHour * 60 + openMin;
+    const closingTimeInMinutes = closeHour * 60 + closeMin;
+
+    const isCurrentlyOpen = currentTimeInMinutes >= openingTimeInMinutes && currentTimeInMinutes < closingTimeInMinutes;
+
     return {
-      today: todayHours || 'Hours not available',
-      isOpen: todayHours && todayHours !== 'Closed',
+      today: `${gym.opening_time} - ${gym.closing_time}`,
+      isOpen: isCurrentlyOpen,
     };
   };
 
@@ -377,14 +368,6 @@ const GymDetailScreen = () => {
         <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
           {gym.name}
         </Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerAction}>
-            <Ionicons name="heart-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerAction}>
-            <Ionicons name="share-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -438,15 +421,6 @@ const GymDetailScreen = () => {
               </Text>
               <Text style={[styles.priceRange, { color: colors.primary }]}>
                 {gym.priceRange}
-              </Text>
-            </View>
-            
-            <View style={styles.ratingContainer}>
-              <View style={styles.starsContainer}>
-                {renderStars(gym.rating)}
-              </View>
-              <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                {gym.rating ? gym.rating.toFixed(1) : 'N/A'} rating
               </Text>
             </View>
             
@@ -564,21 +538,14 @@ const GymDetailScreen = () => {
           </View>
         </View>
 
-        {/* Amenities */}
+        {/* Description */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Amenities & Features
+            About
           </Text>
-          <View style={styles.amenitiesGrid}>
-            {gym.amenities.map((amenity, index) => (
-              <View key={`${gym.id}-amenity-${index}`} style={[styles.amenityItem, { backgroundColor: colors.background }]}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={[styles.amenityText, { color: colors.text }]}>
-                  {amenity}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>
+            {gym.description || 'No description available'}
+          </Text>
         </View>
 
         {/* Opening Hours */}
@@ -586,17 +553,15 @@ const GymDetailScreen = () => {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Opening Hours
           </Text>
-          <View style={styles.hoursGrid}>
-            {Object.entries(gym.openHours).map(([day, hours]) => (
-              <View key={day} style={styles.hoursRow}>
-                <Text style={[styles.dayText, { color: colors.text }]}>
-                  {day}
-                </Text>
-                <Text style={[styles.hoursTextRight, { color: colors.textSecondary }]}>
-                  {hours}
-                </Text>
-              </View>
-            ))}
+          <View style={styles.hoursRow}>
+            <Text style={[styles.dayText, { color: colors.text }]}>
+              Hours
+            </Text>
+            <Text style={[styles.hoursTextRight, { color: colors.textSecondary }]}>
+              {gym.opening_time && gym.closing_time 
+                ? `${gym.opening_time} - ${gym.closing_time}`
+                : 'Hours not available'}
+            </Text>
           </View>
         </View>
 
@@ -711,13 +676,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginHorizontal: 8,
   },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  headerAction: {
-    padding: 8,
-    marginLeft: 4,
-  },
   imageContainer: {
     position: 'relative',
   },
@@ -762,19 +720,6 @@ const styles = StyleSheet.create({
   priceRange: {
     fontSize: 20,
     fontWeight: '600',
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    marginRight: 8,
-  },
-  ratingText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
   locationContainer: {
     flexDirection: 'row',
@@ -839,20 +784,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 16,
   },
-  amenitiesGrid: {
-    gap: 12,
-  },
-  amenityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 12,
-  },
-  amenityText: {
+  descriptionText: {
     fontSize: 16,
-    flex: 1,
+    lineHeight: 24,
   },
   hoursGrid: {
     gap: 8,
