@@ -19,6 +19,8 @@ import AddExerciseScreen from '@/screens/workouts/AddExerciseScreen';
 import StoreScreen from '@/screens/store/StoreScreen';
 import ProductDetailScreen from '@/screens/store/ProductDetailScreen';
 import CartScreen from '@/screens/store/CartScreen';
+import ReceiptScreen from '@/screens/store/ReceiptScreen';
+import OrderHistoryScreen from '@/screens/store/OrderHistoryScreen';
 import GymsScreen from '@/screens/gyms/GymsScreen';
 import GymDetailScreen from '@/screens/gyms/GymDetailScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
@@ -70,6 +72,8 @@ export type StoreStackParamList = {
   StoreList: undefined;
   ProductDetail: { productId: string };
   Cart: undefined;
+  Receipt: { orderId: string };
+  OrderHistory: undefined;
 };
 
 export type GymStackParamList = {
@@ -177,6 +181,16 @@ const StoreNavigator = () => {
         name="Cart" 
         component={CartScreen}
         options={{ title: 'Shopping Cart' }}
+      />
+      <StoreStack.Screen 
+        name="Receipt" 
+        component={ReceiptScreen}
+        options={{ title: 'Order Receipt' }}
+      />
+      <StoreStack.Screen 
+        name="OrderHistory" 
+        component={OrderHistoryScreen}
+        options={{ title: 'Order History' }}
       />
     </StoreStack.Navigator>
   );

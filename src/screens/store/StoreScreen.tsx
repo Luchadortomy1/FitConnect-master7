@@ -345,19 +345,27 @@ const StoreScreen = () => {
         <Text style={[styles.title, { color: colors.text }]}>
           Tienda de Suplementos
         </Text>
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate('Cart' as never)}
-        >
-          <Ionicons name="cart-outline" size={24} color={colors.text} />
-          {cart.length > 0 && (
-            <View style={[styles.cartBadgeHeader, { backgroundColor: colors.error }]}>
-              <Text style={styles.cartBadgeHeaderText}>
-                {cart.reduce((sum, item) => sum + item.quantity, 0)}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('OrderHistory' as never)}
+          >
+            <Ionicons name="receipt-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cartButton}
+            onPress={() => navigation.navigate('Cart' as never)}
+          >
+            <Ionicons name="cart-outline" size={24} color={colors.text} />
+            {cart.length > 0 && (
+              <View style={[styles.cartBadgeHeader, { backgroundColor: colors.error }]}>
+                <Text style={styles.cartBadgeHeaderText}>
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search Bar */}
@@ -461,6 +469,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerButton: {
+    position: 'relative',
+    padding: 8,
   },
   cartButton: {
     position: 'relative',

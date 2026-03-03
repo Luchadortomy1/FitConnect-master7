@@ -84,9 +84,8 @@ const SignupScreen = () => {
       } else {
         Alert.alert('Error', result.error || 'Failed to create account. Please try again.');
       }
-    } catch (error) {
-      console.error('Signup error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }

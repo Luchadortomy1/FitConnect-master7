@@ -164,17 +164,8 @@ const CartScreen = () => {
         data: { order_id: newOrderId },
       });
 
-      Alert.alert('Éxito', 'Tu compra se completó correctamente', [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Store' as never, params: { screen: 'StoreList' } as never }],
-            });
-          },
-        },
-      ]);
+      // Navegar a la pantalla de comprobante
+      navigation.navigate('Receipt' as never, { orderId: newOrderId } as never);
     } catch (error) {
       // Si hay error y fue creada la orden, eliminarla
       if (newOrderId) {

@@ -141,7 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       return { success: false, error: result.error || 'Signup failed' };
     } catch (error: any) {
-      console.error('Signup error:', error);
       return { success: false, error: error.message || 'Signup failed' };
     } finally {
       setLoading(false);

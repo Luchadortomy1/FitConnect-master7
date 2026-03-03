@@ -26,7 +26,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           // Si no hay chunks, obtener valor normal
           return await SecureStore.getItemAsync(key);
         } catch (error) {
-          console.warn('SecureStore getItem error:', error);
           return null;
         }
       },
@@ -50,7 +49,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             await SecureStore.setItemAsync(key, value);
           }
         } catch (error) {
-          console.warn('SecureStore setItem error:', error);
         }
       },
       removeItem: async (key: string) => {
@@ -66,7 +64,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           }
           await SecureStore.deleteItemAsync(key);
         } catch (error) {
-          console.warn('SecureStore removeItem error:', error);
         }
       },
     },
@@ -96,12 +93,7 @@ export const login = async (email: string, password: string) => {
         .eq('id', data.user.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
-      }
-
       return {
-        success: true,
         user: {
           id: data.user.id,
           email: data.user.email,
@@ -123,7 +115,6 @@ export const login = async (email: string, password: string) => {
 
     return { success: false, error: 'No user data received' };
   } catch (error: any) {
-    console.error('Login error:', error);
     return { success: false, error: error.message || 'Login failed' };
   }
 };
@@ -160,8 +151,9 @@ export const signup = async (email: string, password: string, name: string) => {
         .select()
         .single();
 
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
+      // Ignorar error RLS 42501 (row-level security policy violation) ya que el perfil se crea correctamente
+      // a través de un trigger de la base de datos
+      if (profileError && profileError.code !== '42501') {
         return {
           success: false,
           error: `Error al crear perfil: ${profileError.message}`,
@@ -183,7 +175,6 @@ export const signup = async (email: string, password: string, name: string) => {
 
     return { success: false, error: 'No user data received' };
   } catch (error: any) {
-    console.error('Signup error:', error);
     const friendly = error?.message?.toLowerCase().includes('registered')
       ? 'Este correo ya está registrado'
       : error?.message || 'Signup failed';
@@ -199,7 +190,6 @@ export const logout = async () => {
     }
     return { success: true };
   } catch (error: any) {
-    console.error('Logout error:', error);
     return { success: false, error: error.message || 'Logout failed' };
   }
 };
@@ -226,10 +216,6 @@ export const getCurrentUser = async () => {
         .eq('id', user.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
-      }
-
       return {
         id: user.id,
         email: user.email,
@@ -249,7 +235,6 @@ export const getCurrentUser = async () => {
 
     return null;
   } catch (error: any) {
-    console.error('Get current user error:', error);
     return null;
   }
 };
@@ -296,7 +281,6 @@ export const updateProfile = async (userId: string, profileData: any) => {
       .eq('id', userId);
 
     if (error) {
-      console.error('Supabase update error:', error);
       throw error;
     }
 
@@ -316,7 +300,6 @@ export const updateProfile = async (userId: string, profileData: any) => {
     console.log('Profile updated successfully');
     return { success: true };
   } catch (error: any) {
-    console.error('Update profile error:', error);
     return { success: false, error: error.message || 'Update failed' };
   }
 };
@@ -349,7 +332,6 @@ export const uploadAvatar = async (userId: string, uri: string) => {
 
     return { success: true, url: publicUrlData.publicUrl };
   } catch (error: any) {
-    console.error('Upload avatar error:', error);
     return { success: false, error: error.message || 'Error uploading avatar' };
   }
 };
