@@ -25,7 +25,9 @@ interface OrderDetails {
   id: string;
   total_amount: number;
   created_at: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' | 'paid' | 'failed';
+  delivery_status: 'pending' | 'delivered' | 'cancelled';
+  delivery_date?: string | null;
   gym_id?: string;
   gym_name?: string;
   items: Array<{
@@ -47,12 +49,16 @@ const ReceiptScreen = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
-  const getStatusInfo = (status: any) => {
-    const validStatus = (status === 'completed' || status === 'pending' || status === 'failed') 
-      ? status 
-      : 'pending';
+  const getStatusInfo = (status: any, deliveryStatus: any = 'pending') => {
+    // Normalizar el status: 'paid' y 'completed' son lo mismo
+    let normalizedStatus = status;
+    if (status === 'paid' || status === 'completed') {
+      normalizedStatus = 'completed';
+    } else if (status !== 'pending' && status !== 'failed') {
+      normalizedStatus = 'pending';
+    }
     
-    switch (validStatus) {
+    switch (normalizedStatus) {
       case 'completed':
         return {
           color: colors.primary,
@@ -60,6 +66,11 @@ const ReceiptScreen = () => {
           title: '¡Compra Exitosa!',
           message: 'Tu pedido ha sido procesado correctamente',
           instruction: `Presenta este comprobante en ${order?.gym_name || 'el gym'} para recoger tu pedido`,
+          deliveryStatus: deliveryStatus === 'delivered' 
+            ? '✅ Entregado'
+            : deliveryStatus === 'cancelled'
+            ? '❌ Cancelado'
+            : '📦 Entrega Pendiente',
         };
       case 'pending':
         return {
@@ -68,6 +79,7 @@ const ReceiptScreen = () => {
           title: 'Compra Pendiente',
           message: 'Tu pedido está siendo procesado. Se confirmará pronto',
           instruction: 'Cuando tu pago se confirme, podrás usar este comprobante para recoger tu pedido',
+          deliveryStatus: null,
         };
       case 'failed':
         return {
@@ -76,6 +88,7 @@ const ReceiptScreen = () => {
           title: 'Compra Fallida',
           message: 'Hubo un problema al procesar tu pedido',
           instruction: 'Tu compra no se pudo procesar. Por favor intenta nuevamente o contacta soporte',
+          deliveryStatus: null,
         };
       default:
         return {
@@ -84,6 +97,7 @@ const ReceiptScreen = () => {
           title: 'Estado Desconocido',
           message: 'No se pudo determinar el estado de tu pedido',
           instruction: 'Por favor contacta soporte',
+          deliveryStatus: null,
         };
     }
   };
@@ -179,7 +193,7 @@ const ReceiptScreen = () => {
       // Obtener detalles de la orden
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .select('id, total_amount, created_at, status, gym_id')
+        .select('id, total_amount, created_at, status, gym_id, delivery_status, delivery_date')
         .eq('id', orderId)
         .single();
 
@@ -231,9 +245,12 @@ const ReceiptScreen = () => {
 
       setOrder({
         ...orderData,
-        status: (orderData.status === 'completed' || orderData.status === 'pending' || orderData.status === 'failed' 
-          ? orderData.status 
-          : 'pending') as 'pending' | 'completed' | 'failed',
+        status: (orderData.status === 'completed' || orderData.status === 'paid' || orderData.status === 'pending' || orderData.status === 'failed' 
+          ? (orderData.status === 'paid' ? 'completed' : orderData.status)
+          : 'pending') as 'pending' | 'completed' | 'paid' | 'failed',
+        delivery_status: (orderData.delivery_status === 'pending' || orderData.delivery_status === 'delivered' || orderData.delivery_status === 'cancelled'
+          ? orderData.delivery_status
+          : 'pending') as 'pending' | 'delivered' | 'cancelled',
         items: itemsWithNames,
         gym_name: gymName,
       });
@@ -311,18 +328,18 @@ const ReceiptScreen = () => {
           {/* Status Header */}
           {order && (
             <View style={styles.successHeader}>
-              <View style={[styles.successCircle, { backgroundColor: getStatusInfo(order.status).color }]}>
+              <View style={[styles.successCircle, { backgroundColor: getStatusInfo(order.status, order.delivery_status).color }]}>
                 <Ionicons 
-                  name={getStatusInfo(order.status).icon as any} 
+                  name={getStatusInfo(order.status, order.delivery_status).icon as any} 
                   size={32} 
                   color="#fff" 
                 />
               </View>
               <Text style={[styles.successTitle, { color: colors.text }]}>
-                {getStatusInfo(order.status).title}
+                {getStatusInfo(order.status, order.delivery_status).title}
               </Text>
               <Text style={[styles.successMessage, { color: colors.textSecondary }]}>
-                {getStatusInfo(order.status).message}
+                {getStatusInfo(order.status, order.delivery_status).message}
               </Text>
             </View>
           )}
@@ -357,8 +374,8 @@ const ReceiptScreen = () => {
                 ESTADO
               </Text>
               <View style={styles.statusBadge}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusInfo(order.status).color }]} />
-                <Text style={[styles.statusLabel, { color: getStatusInfo(order.status).color }]}>
+                <View style={[styles.statusDot, { backgroundColor: getStatusInfo(order.status, order.delivery_status).color }]} />
+                <Text style={[styles.statusLabel, { color: getStatusInfo(order.status, order.delivery_status).color }]}>
                   {(() => {
                     switch (order.status) {
                       case 'completed':
@@ -373,6 +390,13 @@ const ReceiptScreen = () => {
                   })()}
                 </Text>
               </View>
+              {getStatusInfo(order.status, order.delivery_status).deliveryStatus && (
+                <View style={[styles.deliveryStatusContainer, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+                  <Text style={[styles.deliveryStatus, { color: colors.primary }]}>
+                    {getStatusInfo(order.status, order.delivery_status).deliveryStatus}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -688,6 +712,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  deliveryStatusContainer: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  deliveryStatus: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: true };
       }
       
-      return { success: false, error: result.error || 'Login failed' };
+      return { success: false, error: result?.error || 'Login failed' };
     } catch (error: any) {
       console.error('Login error:', error);
       return { success: false, error: error.message || 'Login failed' };

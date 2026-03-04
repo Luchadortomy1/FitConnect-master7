@@ -94,6 +94,7 @@ export const login = async (email: string, password: string) => {
         .single();
 
       return {
+        success: true,
         user: {
           id: data.user.id,
           email: data.user.email,
@@ -333,5 +334,37 @@ export const uploadAvatar = async (userId: string, uri: string) => {
     return { success: true, url: publicUrlData.publicUrl };
   } catch (error: any) {
     return { success: false, error: error.message || 'Error uploading avatar' };
+  }
+};
+
+export const requestPasswordReset = async (email: string) => {
+  try {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'fitconnect://reset-password',
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error sending password reset email' };
+  }
+};
+
+export const updatePassword = async (newPassword: string) => {
+  try {
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error updating password' };
   }
 };

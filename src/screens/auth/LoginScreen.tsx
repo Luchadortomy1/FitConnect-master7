@@ -57,7 +57,7 @@ const LoginScreen = () => {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert('Próximamente', 'La recuperación de contraseña estará disponible en esta versión.');
+    navigation.navigate('ForgotPassword' as any);
   };
 
   const styles = StyleSheet.create({

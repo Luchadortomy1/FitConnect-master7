@@ -5,7 +5,7 @@ export interface Order {
   id: string;
   user_id: string;
   total_amount: number;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' | 'paid' | 'failed';
   stripe_payment_intent_id: string | null;
   created_at: string;
 }
@@ -157,10 +157,10 @@ export const ordersApi = {
         return false;
       }
 
-      // Actualizar el estado de la orden a paid
+      // Actualizar el estado de la orden a completed
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ status: 'paid' })
+        .update({ status: 'completed' })
         .eq('id', orderId);
 
       if (updateError) {
