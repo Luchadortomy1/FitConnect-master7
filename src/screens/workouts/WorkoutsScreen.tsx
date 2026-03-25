@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
+  Modal as RNModal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -20,6 +21,7 @@ import { routinesApi } from '@/api/routines';
 import { workoutSessionsApi } from '@/api/workoutSessions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
+import { userSubscriptionsApi } from '@/api';
 
 const { width } = Dimensions.get('window');
 
@@ -54,9 +56,57 @@ const WorkoutsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaysSessions, setTodaysSessions] = useState<any[]>([]);
+  const [dialog, setDialog] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    primary?: { label: string; onPress: () => void };
+    secondary?: { label: string; onPress: () => void; style?: 'cancel' | 'destructive' };
+  }>({ visible: false, title: '', message: '' });
   const routinesSafe = Array.isArray(routines) ? routines : [];
 
-  const handleCreateRoutinePress = () => {
+  const showDialog = (
+    title: string,
+    message: string,
+    options?: {
+      primary?: { label: string; onPress: () => void };
+      secondary?: { label: string; onPress: () => void; style?: 'cancel' | 'destructive' };
+    }
+  ) => {
+    setDialog({ visible: true, title, message, ...options });
+  };
+
+  const handleCreateRoutinePress = async () => {
+    try {
+      const activeSubscriptions = await userSubscriptionsApi.getUserAllActiveSubscriptions();
+      if (activeSubscriptions.length === 0) {
+        showDialog('Regístrate en un gimnasio', 'Debes suscribirte a un gimnasio antes de crear una rutina.', {
+          primary: {
+            label: 'Ver gimnasios',
+            onPress: () => {
+              setDialog(prev => ({ ...prev, visible: false }));
+              navigation.navigate('Gyms' as never);
+            },
+          },
+          secondary: {
+            label: 'Cancelar',
+            onPress: () => setDialog(prev => ({ ...prev, visible: false })),
+            style: 'cancel',
+          },
+        });
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking gym subscription:', error);
+      showDialog('Error', 'No se pudo verificar tu suscripción. Inténtalo de nuevo.', {
+        primary: {
+          label: 'Entendido',
+          onPress: () => setDialog(prev => ({ ...prev, visible: false })),
+        },
+      });
+      return;
+    }
+
     const routineCount = Array.isArray(routines) ? routines.length : 0;
 
     if (routineCount >= 2) {
@@ -269,7 +319,7 @@ const WorkoutsScreen = () => {
         rightComponent={
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={handleCreateRoutinePress}
+            onPress={() => { void handleCreateRoutinePress(); }}
           >
             <Ionicons name="add" size={24} color="white" />
           </TouchableOpacity>
@@ -312,7 +362,7 @@ const WorkoutsScreen = () => {
                   <Ionicons name="flame" size={16} color={colors.primary} />
                   <Text style={[styles.heroBadgeText, { color: colors.primary }]}>Rutina activa</Text>
                 </View>
-                  <TouchableOpacity onPress={handleCreateRoutinePress}>
+                  <TouchableOpacity onPress={() => { void handleCreateRoutinePress(); }}>
                   <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -378,7 +428,7 @@ const WorkoutsScreen = () => {
               <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>Crea tu primera rutina</Text>
               <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>Organiza tus entrenos semanales y sigue el plan del mock</Text>
-              <Button title="Crear rutina" onPress={handleCreateRoutinePress} style={styles.createButton} />
+              <Button title="Crear rutina" onPress={() => { void handleCreateRoutinePress(); }} style={styles.createButton} />
             </Card>
           )}
         </View>
@@ -446,7 +496,7 @@ const WorkoutsScreen = () => {
               <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No hay rutinas</Text>
               <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>Crea una rutina o activa la que viene en Supabase</Text>
-              <Button title="Crear rutina" onPress={handleCreateRoutinePress} style={styles.createButton} />
+              <Button title="Crear rutina" onPress={() => { void handleCreateRoutinePress(); }} style={styles.createButton} />
             </Card>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4, gap: 12 }}>
@@ -496,6 +546,58 @@ const WorkoutsScreen = () => {
           )}
         </View>
       </ScrollView>
+
+      {/* Styled dialog overlay */}
+      <RNModal
+        visible={dialog.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDialog(prev => ({ ...prev, visible: false }))}
+      >
+        <View style={styles.dialogBackdrop}>
+          <View style={[styles.dialogCard, { backgroundColor: colors.surface }]}> 
+            <View style={styles.dialogHeader}>
+              <View style={[styles.dialogIcon, { backgroundColor: colors.primary + '22' }]}> 
+                <Ionicons name="information-circle" size={24} color={colors.primary} />
+              </View>
+              <Text style={[styles.dialogTitle, { color: colors.text }]}>{dialog.title}</Text>
+            </View>
+            <Text style={[styles.dialogMessage, { color: colors.textSecondary }]}>{dialog.message}</Text>
+            <View style={styles.dialogActions}>
+              {dialog.secondary && (
+                <TouchableOpacity
+                  style={[styles.dialogButton, styles.dialogGhost]}
+                  onPress={() => {
+                    setDialog(prev => ({ ...prev, visible: false }));
+                    dialog.secondary?.onPress?.();
+                  }}
+                >
+                  <Text style={[styles.dialogGhostText, { color: colors.text }]}>{dialog.secondary.label}</Text>
+                </TouchableOpacity>
+              )}
+              {dialog.primary && (
+                <TouchableOpacity
+                  style={[styles.dialogButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setDialog(prev => ({ ...prev, visible: false }));
+                    dialog.primary?.onPress?.();
+                  }}
+                >
+                  <Text style={styles.dialogPrimaryText}>{dialog.primary.label}</Text>
+                </TouchableOpacity>
+              )}
+              {!dialog.primary && !dialog.secondary && (
+                <TouchableOpacity
+                  style={[styles.dialogButton, { backgroundColor: colors.primary }]}
+                  onPress={() => setDialog(prev => ({ ...prev, visible: false }))}
+                >
+                  <Text style={styles.dialogPrimaryText}>OK</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </RNModal>
     </View>
   );
 };
@@ -733,6 +835,70 @@ const styles = StyleSheet.create({
   goalValue: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  dialogBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  dialogCard: {
+    width: '92%',
+    borderRadius: 18,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+    gap: 12,
+  },
+  dialogHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dialogIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    flex: 1,
+  },
+  dialogMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  dialogButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogGhost: {
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  dialogGhostText: {
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  dialogPrimaryText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: '700',
   },
 });
 

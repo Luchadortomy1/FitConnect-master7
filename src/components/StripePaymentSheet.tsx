@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useStripe } from '@stripe/stripe-react-native';
 import { createPaymentIntent } from '@/config/stripe';
 import { useAuth } from '@/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 interface StripePaymentProps {
   planName: string;
@@ -32,10 +26,11 @@ export const StripePaymentSheet = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { Dialog, showDialog } = useAppDialog();
 
   const handlePayment = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'Usuario no autenticado');
+      showDialog('Error', 'Usuario no autenticado', { tone: 'error' });
       return;
     }
 
@@ -70,7 +65,7 @@ export const StripePaymentSheet = ({
 
       if (initError) {
         console.error('Init PaymentSheet error:', initError);
-        Alert.alert('Error', 'Error al inicializar el formulario de pago');
+        showDialog('Error', 'Error al inicializar el formulario de pago', { tone: 'error' });
         setLoading(false);
         return;
       }
@@ -88,25 +83,24 @@ export const StripePaymentSheet = ({
         }
         
         console.error('Present PaymentSheet error:', presentError);
-        Alert.alert('Error', presentError.message || 'Error al procesar el pago');
+        showDialog('Error', presentError.message || 'Error al procesar el pago', { tone: 'error' });
         setLoading(false);
         return;
       }
 
       // 4. Pago exitoso - extraer payment intent ID del clientSecret
       const paymentIntentId = clientSecret.split('_secret_')[0];
-      
-      Alert.alert('¡Éxito!', 'Tu suscripción se ha completado correctamente', [
-        {
-          text: 'OK',
-          onPress: () => {
-            onSuccess(paymentIntentId);
-          },
+
+      showDialog('¡Éxito!', 'Tu suscripción se ha completado correctamente', {
+        tone: 'success',
+        primary: {
+          label: 'OK',
+          onPress: () => onSuccess(paymentIntentId),
         },
-      ]);
+      });
     } catch (error: any) {
       console.error('Payment error:', error);
-      Alert.alert('Error', error.message || 'Error al procesar el pago');
+      showDialog('Error', error.message || 'Error al procesar el pago', { tone: 'error' });
     } finally {
       setLoading(false);
     }
@@ -114,6 +108,7 @@ export const StripePaymentSheet = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
+      <Dialog />
       <View style={styles.content}>
         <View style={styles.iconContainer}>
           <Ionicons name="checkmark-circle" size={60} color={colors.primary} />

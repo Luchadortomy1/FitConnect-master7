@@ -6,6 +6,45 @@ import { decode } from 'base64-arraybuffer';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/supabase';
 import { routinesApi } from '@/api/routines';
 
+// Ensures a profile row exists and returns it; tries to backfill name from metadata/email
+const ensureProfileExists = async (user: any) => {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profile) return profile;
+
+    const fallbackName = user?.user_metadata?.full_name
+      || user?.user_metadata?.name
+      || (user?.email ? user.email.split('@')[0] : 'Usuario');
+
+    const { data: insertedProfile, error: insertError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        full_name: fallbackName,
+        email: user.email,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error upserting profile:', insertError);
+      return null;
+    }
+
+    return insertedProfile;
+  } catch (error) {
+    console.error('Error ensuring profile exists:', error);
+    return null;
+  }
+};
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: {
@@ -86,19 +125,18 @@ export const login = async (email: string, password: string) => {
     }
 
     if (data.user && data.session) {
-      // Obtener perfil del usuario desde la tabla profiles
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
+      // Obtener perfil del usuario desde la tabla profiles o crearlo
+      const profile = await ensureProfileExists(data.user);
 
       return {
         success: true,
         user: {
           id: data.user.id,
           email: data.user.email,
-          name: profile?.full_name || '',
+          name: profile?.full_name
+            || data.user.user_metadata?.full_name
+            || data.user.user_metadata?.name
+            || (data.user.email ? data.user.email.split('@')[0] : ''),
           avatar: profile?.avatar_url || undefined,
           age: profile?.age || undefined,
           weight: profile?.weight || undefined,
@@ -139,27 +177,32 @@ export const signup = async (email: string, password: string, name: string) => {
     }
 
     if (data.user) {
-      // Crear o actualizar perfil del usuario (upsert)
-      const { data: insertedProfile, error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: data.user.id,
-          full_name: name,
-          email: email,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+      // Crear o actualizar perfil del usuario (upsert) si hay sesión; si no, lo crearemos en el primer login
+      let insertedProfile = null;
+      if (data.session) {
+        const { data: profileRow, error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            full_name: name,
+            email: email,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
 
-      // Ignorar error RLS 42501 (row-level security policy violation) ya que el perfil se crea correctamente
-      // a través de un trigger de la base de datos
-      if (profileError && profileError.code !== '42501') {
-        return {
-          success: false,
-          error: `Error al crear perfil: ${profileError.message}`,
-          profileError: true,
-        };
+        // Ignorar error RLS 42501 (row-level security policy violation) ya que el perfil se crea correctamente
+        // a través de un trigger de la base de datos
+        if (profileError && profileError.code !== '42501') {
+          return {
+            success: false,
+            error: `Error al crear perfil: ${profileError.message}`,
+            profileError: true,
+          };
+        }
+
+        insertedProfile = profileRow;
       }
 
       return {
@@ -167,7 +210,10 @@ export const signup = async (email: string, password: string, name: string) => {
         user: {
           id: data.user.id,
           email: data.user.email,
-          name: insertedProfile?.full_name || name,
+          name: insertedProfile?.full_name
+            || data.user.user_metadata?.full_name
+            || data.user.user_metadata?.name
+            || name,
         },
         session: data.session,
         needsConfirmation: !data.session, // Si no hay sesión, necesita confirmación por email
@@ -210,17 +256,16 @@ export const getCurrentUser = async () => {
     }
 
     if (user) {
-      // Obtener perfil del usuario
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // Obtener perfil del usuario o crearlo si no existe
+      const profile = await ensureProfileExists(user);
 
       return {
         id: user.id,
         email: user.email,
-        name: profile?.full_name || '',
+        name: profile?.full_name
+          || user.user_metadata?.full_name
+          || user.user_metadata?.name
+          || (user.email ? user.email.split('@')[0] : ''),
         avatar: profile?.avatar_url || undefined,
         age: profile?.age || undefined,
         weight: profile?.weight || undefined,

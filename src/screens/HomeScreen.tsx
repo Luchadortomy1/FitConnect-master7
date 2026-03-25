@@ -8,7 +8,6 @@ import {
   RefreshControl,
   Dimensions,
   Image,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, CommonActions } from '@react-navigation/native';
@@ -21,6 +20,7 @@ import { DayWorkout, Supplement } from '@/types';
 import { routinesApi, storeApi, userSubscriptionsApi, gymsApi } from '@/api';
 import { useApp } from '@/contexts/AppContext';
 import { checkSubscriptionNotifications } from '@/utils/subscriptionNotifications';
+import { useAppDialog } from '@/hooks/useAppDialog';
 
 const { width } = Dimensions.get('window');
 const CAROUSEL_CARD_HEIGHT = 320;
@@ -43,6 +43,7 @@ const HomeScreen = () => {
   const { user } = useAuth();
   const navigation = useNavigation();
   const { notifications, addNotification } = useApp();
+  const { Dialog, showDialog } = useAppDialog();
   
   const [todayWorkout, setTodayWorkout] = useState<DayWorkout | null>(null);
   const [recommendedSupplements, setRecommendedSupplements] = useState<Supplement[]>([]);
@@ -260,11 +261,11 @@ const HomeScreen = () => {
           params: { gym } 
         } as never);
       } else {
-        Alert.alert('Error', 'No se pudo cargar la información del gimnasio');
+        showDialog('Error', 'No se pudo cargar la información del gimnasio', { tone: 'error' });
       }
     } catch (error) {
       console.error('Error loading gym:', error);
-      Alert.alert('Error', 'No se pudo cargar la información del gimnasio');
+      showDialog('Error', 'No se pudo cargar la información del gimnasio', { tone: 'error' });
     }
   };
 
@@ -283,6 +284,7 @@ const HomeScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Dialog />
       <Header 
         title=""
         leftAction={{
@@ -333,7 +335,7 @@ const HomeScreen = () => {
         {/* Welcome Section */}
         <View style={styles.section}>
           <Text style={[styles.greeting, { color: colors.text }]}>
-            {getGreeting()}, {user?.name || 'Usuario'}! 👋
+            {getGreeting()}, {user?.name || 'Usuario'}!
           </Text>
           <Text style={[styles.welcomeText, { color: colors.textSecondary }]}>
             Aquí tienes tu resumen del día
