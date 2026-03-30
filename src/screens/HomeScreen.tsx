@@ -581,9 +581,10 @@ const HomeScreen = () => {
               showsHorizontalScrollIndicator={false}
               scrollEventThrottle={16}
               style={styles.subscriptionsScroll}
+              contentContainerStyle={styles.subscriptionsContent}
             >
-              {gymSubscriptions.map((subscription, index) => (
-                <Card key={subscription.id} style={[styles.subscriptionCard, { marginRight: index === gymSubscriptions.length - 1 ? 0 : 12 }]}>
+              {gymSubscriptions.map((subscription) => (
+                <Card key={subscription.id} style={styles.subscriptionCard}>
                   <View style={styles.subscriptionHeader}>
                     <View style={[styles.gymIcon, { backgroundColor: colors.info + '20' }]}>
                       <Ionicons name="business-outline" size={24} color={colors.info} />
@@ -933,9 +934,14 @@ const styles = StyleSheet.create({
     marginHorizontal: -24,
     paddingHorizontal: 24,
   },
+  subscriptionsContent: {
+    paddingRight: 12,
+    gap: 12,
+  },
   subscriptionCard: {
     marginBottom: 8,
     minWidth: Dimensions.get('window').width - 64,
+    marginRight: 12,
   },
   subscriptionHeader: {
     flexDirection: 'row',

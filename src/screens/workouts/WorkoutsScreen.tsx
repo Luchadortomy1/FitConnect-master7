@@ -148,23 +148,36 @@ const WorkoutsScreen = () => {
         routinesApi.getRoutines(),
         routinesApi.getActiveRoutine(),
       ]);
-      setRoutines(Array.isArray(routinesData) ? routinesData : []);
-      setActiveRoutine(activeRoutineData || null);
+      const safeRoutines = Array.isArray(routinesData) ? routinesData : [];
+      const active = activeRoutineData || null;
 
-      // Cargar sesiones de hoy
+      setRoutines(safeRoutines);
+      setActiveRoutine(active);
+
+      // Cargar sesiones de hoy SOLO para la rutina activa
       const today = new Date();
       const todayLocal = today.toLocaleDateString('en-CA'); // YYYY-MM-DD in local tz
-      try {
-        const sessions = await workoutSessionsApi.getSessions(1);
-        const todaysSessionsList = sessions.filter((s: any) => {
-          const completed = s.completed_at ? new Date(s.completed_at) : null;
-          if (!completed) return false;
-          const completedLocal = completed.toLocaleDateString('en-CA');
-          return completedLocal === todayLocal;
-        });
-        setTodaysSessions(todaysSessionsList);
-      } catch (error) {
-        console.warn('Error loading todays sessions:', error);
+      const todayKey = getCurrentDay();
+
+      if (active?.id) {
+        try {
+          const sessions = await workoutSessionsApi.getSessions(20);
+          const todaysSessionsList = sessions.filter((s: any) => {
+            const completed = s.completed_at ? new Date(s.completed_at) : null;
+            if (!completed) return false;
+            const completedLocal = completed.toLocaleDateString('en-CA');
+            return (
+              completedLocal === todayLocal &&
+              s.routine_id === active.id &&
+              s.day_key === todayKey
+            );
+          });
+          setTodaysSessions(todaysSessionsList);
+        } catch (error) {
+          console.warn('Error loading todays sessions:', error);
+          setTodaysSessions([]);
+        }
+      } else {
         setTodaysSessions([]);
       }
     } catch (error) {

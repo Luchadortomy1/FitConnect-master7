@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal as RNModal,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -50,25 +50,6 @@ const CreateRoutineScreen = () => {
   const [selectedDays, setSelectedDays] = useState<Set<WeekDay>>(new Set());
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [dialog, setDialog] = useState<{
-    visible: boolean;
-    title: string;
-    message: string;
-    primary?: { label: string; onPress: () => void };
-    secondary?: { label: string; onPress: () => void };
-  }>({ visible: false, title: '', message: '' });
-
-  const showDialog = (
-    title: string,
-    message: string,
-    options?: {
-      primary?: { label: string; onPress: () => void };
-      secondary?: { label: string; onPress: () => void };
-    }
-  ) => {
-    setDialog({ visible: true, title, message, ...options });
-  };
-
   const availableTemplates = user?.goal ? getTemplatesByGoal(user.goal) : [];
 
   const weekDays: { key: WeekDay; label: string; short: string }[] = [
@@ -114,33 +95,26 @@ const CreateRoutineScreen = () => {
   const createRoutine = async () => {
     const activeSubscriptions = await userSubscriptionsApi.getUserAllActiveSubscriptions();
     if (activeSubscriptions.length === 0) {
-      showDialog('Regístrate en un gimnasio', 'Debes suscribirte a un gimnasio antes de crear una rutina.', {
-        primary: {
-          label: 'Ver gimnasios',
-          onPress: () => {
-            setDialog(prev => ({ ...prev, visible: false }));
-            navigation.navigate('Gyms' as never);
-          },
+      Alert.alert('Regístrate en un gimnasio', 'Debes suscribirte a un gimnasio antes de crear una rutina.', [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
         },
-        secondary: {
-          label: 'Cancelar',
-          onPress: () => setDialog(prev => ({ ...prev, visible: false })),
+        {
+          text: 'Ver gimnasios',
+          onPress: () => navigation.navigate('Gyms' as never),
         },
-      });
+      ]);
       return;
     }
 
     if (!routineName.trim()) {
-      showDialog('Nombre requerido', 'Por favor ingresa un nombre para la rutina.', {
-        primary: { label: 'Entendido', onPress: () => setDialog(prev => ({ ...prev, visible: false })) },
-      });
+      Alert.alert('Nombre requerido', 'Por favor ingresa un nombre para la rutina.');
       return;
     }
 
     if (selectedDays.size === 0) {
-      showDialog('Selecciona días', 'Elige al menos un día de entrenamiento para crear tu rutina.', {
-        primary: { label: 'OK', onPress: () => setDialog(prev => ({ ...prev, visible: false })) },
-      });
+      Alert.alert('Selecciona días', 'Elige al menos un día de entrenamiento para crear tu rutina.');
       return;
     }
 
@@ -184,20 +158,15 @@ const CreateRoutineScreen = () => {
       };
 
       await routinesApi.createRoutine(newRoutine);
-      showDialog('Rutina creada', '¡Tu rutina se ha creado exitosamente! Ahora puedes agregar ejercicios.', {
-        primary: {
-          label: 'OK',
-          onPress: () => {
-            setDialog(prev => ({ ...prev, visible: false }));
-            navigation.goBack();
-          },
+      Alert.alert('Rutina creada', '¡Tu rutina se ha creado exitosamente! Ahora puedes agregar ejercicios.', [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
         },
-      });
+      ]);
     } catch (error) {
       console.error('Error creating routine:', error);
-      showDialog('Error', 'No se pudo crear la rutina. Inténtalo de nuevo.', {
-        primary: { label: 'Entendido', onPress: () => setDialog(prev => ({ ...prev, visible: false })) },
-      });
+      Alert.alert('Error', 'No se pudo crear la rutina. Inténtalo de nuevo.');
     } finally {
       setIsCreating(false);
     }
@@ -355,58 +324,6 @@ const CreateRoutineScreen = () => {
       <View style={[styles.bottomContainer, { backgroundColor: colors.surface }]}>
         <Button title="Crear Rutina" onPress={createRoutine} disabled={!routineName.trim() || selectedDays.size === 0 || isCreating} />
       </View>
-
-      {/* Styled dialog */}
-      <RNModal
-        visible={dialog.visible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDialog(prev => ({ ...prev, visible: false }))}
-      >
-        <View style={styles.dialogBackdrop}>
-          <View style={[styles.dialogCard, { backgroundColor: colors.surface }]}>
-            <View style={styles.dialogHeader}>
-              <View style={[styles.dialogIcon, { backgroundColor: colors.primary + '20' }]}>
-                <Ionicons name="information-circle" size={24} color={colors.primary} />
-              </View>
-              <Text style={[styles.dialogTitle, { color: colors.text }]}>{dialog.title}</Text>
-            </View>
-            <Text style={[styles.dialogMessage, { color: colors.textSecondary }]}>{dialog.message}</Text>
-            <View style={styles.dialogActions}>
-              {dialog.secondary && (
-                <TouchableOpacity
-                  style={[styles.dialogButton, styles.dialogGhost]}
-                  onPress={() => {
-                    setDialog(prev => ({ ...prev, visible: false }));
-                    dialog.secondary?.onPress?.();
-                  }}
-                >
-                  <Text style={[styles.dialogGhostText, { color: colors.text }]}>{dialog.secondary.label}</Text>
-                </TouchableOpacity>
-              )}
-              {dialog.primary && (
-                <TouchableOpacity
-                  style={[styles.dialogButton, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    setDialog(prev => ({ ...prev, visible: false }));
-                    dialog.primary?.onPress?.();
-                  }}
-                >
-                  <Text style={styles.dialogPrimaryText}>{dialog.primary.label}</Text>
-                </TouchableOpacity>
-              )}
-              {!dialog.primary && !dialog.secondary && (
-                <TouchableOpacity
-                  style={[styles.dialogButton, { backgroundColor: colors.primary }]}
-                  onPress={() => setDialog(prev => ({ ...prev, visible: false }))}
-                >
-                  <Text style={styles.dialogPrimaryText}>OK</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      </RNModal>
     </View>
   );
 };
@@ -541,70 +458,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 16,
     textAlign: 'center',
-  },
-  dialogBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  dialogCard: {
-    width: '92%',
-    borderRadius: 18,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-    gap: 12,
-  },
-  dialogHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dialogIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dialogTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    flex: 1,
-  },
-  dialogMessage: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  dialogActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  dialogButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dialogGhost: {
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
-  },
-  dialogGhostText: {
-    textAlign: 'center',
-    fontWeight: '700',
-  },
-  dialogPrimaryText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: '700',
   },
 });
 

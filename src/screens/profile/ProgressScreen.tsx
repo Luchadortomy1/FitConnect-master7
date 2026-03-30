@@ -302,7 +302,7 @@ const ProgressScreen = () => {
 
         {/* Summary */}
         <View style={[styles.section, styles.bottomSection]}>
-          <Card style={{ ...styles.summaryCard, backgroundColor: colors.primary + '10', borderColor: colors.primary, borderWidth: 1 }}>
+          <Card style={{ ...styles.summaryCard, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}>
             <Text style={[styles.summaryTitle, { color: colors.text }]}>
               📈 Tu progreso
             </Text>

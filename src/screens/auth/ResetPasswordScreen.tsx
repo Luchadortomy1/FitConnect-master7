@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { updatePassword } from '@/api/auth';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button, Input } from '@/components';
 import { Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { navigationHelper } from '@/navigation/navigationHelper';
 
 const ResetPasswordScreen = () => {
   const navigation = useNavigation();
-  const route = useRoute();
   const { colors } = useTheme();
+  const { logout } = useAuth();
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,18 +46,14 @@ const ResetPasswordScreen = () => {
     try {
       const result = await updatePassword(newPassword);
       if (result.success) {
+        await logout();
         Alert.alert(
           '¡Contraseña actualizada!',
           'Tu contraseña ha sido cambiada exitosamente. Por favor, inicia sesión con tu nueva contraseña.',
           [
             {
               text: 'Iniciar sesión',
-              onPress: () => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Login' }],
-                });
-              },
+              onPress: () => navigationHelper.navigate('Auth', { screen: 'Login' }),
             },
           ]
         );

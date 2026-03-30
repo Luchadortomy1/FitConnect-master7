@@ -6,6 +6,8 @@ import { decode } from 'base64-arraybuffer';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/supabase';
 import { routinesApi } from '@/api/routines';
 
+const DEEP_LINK_REDIRECT = 'fitconnect://auth';
+
 // Ensures a profile row exists and returns it; tries to backfill name from metadata/email
 const ensureProfileExists = async (user: any) => {
   try {
@@ -164,6 +166,7 @@ export const signup = async (email: string, password: string, name: string) => {
       email,
       password,
       options: {
+        emailRedirectTo: DEEP_LINK_REDIRECT,
         data: {
           full_name: name,
         },
@@ -385,7 +388,8 @@ export const uploadAvatar = async (userId: string, uri: string) => {
 export const requestPasswordReset = async (email: string) => {
   try {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'fitconnect://reset-password',
+      // Deep link handled in-app: configured in Supabase Auth Settings as well
+      redirectTo: DEEP_LINK_REDIRECT,
     });
 
     if (error) {

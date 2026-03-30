@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useRef } from 'react';
+import { Alert, Linking } from 'react-native';
 import { User } from '@/types';
 import { login as apiLogin, signup as apiSignup, logout as apiLogout, getCurrentUser, updateProfile, supabase } from '@/api/auth';
 import * as SecureStore from 'expo-secure-store';
+import { navigationHelper } from '@/navigation/navigationHelper';
 
 const AUTH_DISABLED = false; // Toggle to re-enable Supabase auth when ready
 
@@ -35,6 +37,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(!AUTH_DISABLED);
+  const processedDeepLinks = useRef<Set<string>>(new Set());
 
   // Skip Supabase auth wiring while auth is disabled
   useEffect(() => {
@@ -43,38 +46,112 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
-    const initializeAuth = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        if (currentUser) {
-          setUser(currentUser);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
+    // Mantener loading hasta recibir INITIAL_SESSION
+    setLoading(true);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
-        
+
+        if (event === 'INITIAL_SESSION') {
+          if (session?.user) {
+            const currentUser = await getCurrentUser();
+            setUser(currentUser);
+          } else {
+            setUser(null);
+          }
+          setLoading(false);
+          return;
+        }
+
         if (event === 'SIGNED_IN' && session?.user) {
           const currentUser = await getCurrentUser();
           setUser(currentUser);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
         }
-        
+
         setLoading(false);
       }
     );
 
     return () => {
       subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Handle Supabase deep links for email confirmation and password recovery
+  useEffect(() => {
+    if (AUTH_DISABLED) return;
+
+    const parseUrlParams = (url: string) => {
+      try {
+        const hash = url.split('#')[1] || '';
+        return new URLSearchParams(hash);
+      } catch (error) {
+        return new URLSearchParams();
+      }
+    };
+
+    const handleAuthDeepLink = async (url: string) => {
+      if (!url || processedDeepLinks.current.has(url)) return;
+
+      processedDeepLinks.current.add(url);
+
+      try {
+        const params = parseUrlParams(url);
+        const type = params.get('type');
+
+        const { data, error } = await supabase.auth.getSessionFromUrl({ url, storeSession: true });
+        if (error) {
+          console.warn('Deep link session error:', error.message);
+          if (error.message.includes('Invalid Refresh Token')) {
+            await supabase.auth.signOut();
+            await SecureStore.deleteItemAsync('supabase.auth.token');
+          }
+          processedDeepLinks.current.delete(url);
+          return;
+        }
+
+        if (data.session) {
+          const currentUser = await getCurrentUser();
+          if (currentUser) {
+            setUser(currentUser);
+          }
+        }
+
+        // Navigate based on the auth event type
+        if (type === 'recovery') {
+          Alert.alert(
+            'Recupera tu contraseña',
+            'Validamos tu enlace. Crea tu nueva contraseña directamente en la app.'
+          );
+          navigationHelper.navigate('PasswordReset');
+        } else if (type === 'signup') {
+          Alert.alert(
+            'Correo verificado',
+            'Tu correo fue confirmado. Ya puedes entrar a FitConnect.'
+          );
+          navigationHelper.navigate('Main');
+        }
+      } catch (error) {
+        console.warn('Error handling auth deep link:', error);
+        processedDeepLinks.current.delete(url);
+      }
+    };
+
+    const deepLinkListener = Linking.addEventListener('url', ({ url }) => {
+      handleAuthDeepLink(url);
+    });
+
+    Linking.getInitialURL().then((initialUrl) => {
+      if (initialUrl) {
+        handleAuthDeepLink(initialUrl);
+      }
+    });
+
+    return () => {
+      deepLinkListener.remove();
     };
   }, []);
 

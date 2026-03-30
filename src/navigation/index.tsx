@@ -1,9 +1,10 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { navigationHelper } from './navigationHelper';
 
 // Import screens (we'll create these next)
 import LoginScreen from '@/screens/auth/LoginScreen';
@@ -38,13 +39,13 @@ export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
   ProfileStack: undefined;
+  PasswordReset: undefined;
 };
 
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
   ForgotPassword: undefined;
-  ResetPassword: undefined;
 };
 
 export type MainTabParamList = {
@@ -110,7 +111,6 @@ const AuthNavigator = () => {
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Signup" component={SignupScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </AuthStack.Navigator>
   );
 };
@@ -346,6 +346,12 @@ const MainNavigator = () => {
 const Navigation = () => {
   const { colors } = useTheme();
   const { isAuthenticated, loading, hasLoggedOut } = useAuth();
+  const navigationRef = useNavigationContainerRef();
+
+  // Register a global navigation ref so we can navigate from deep-link handlers
+  React.useEffect(() => {
+    navigationHelper.setNavigationRef(navigationRef);
+  }, [navigationRef]);
   
   console.log('Navigation - isAuthenticated:', isAuthenticated, 'loading:', loading, 'hasLoggedOut:', hasLoggedOut);
   
@@ -356,6 +362,27 @@ const Navigation = () => {
   
   return (
     <NavigationContainer
+      ref={navigationRef}
+      linking={{
+        prefixes: ['fitconnect://'],
+        config: {
+          screens: {
+            PasswordReset: 'reset-password',
+            Auth: {
+              screens: {
+                Login: 'auth',
+                Signup: 'signup',
+                ForgotPassword: 'forgot-password',
+              },
+            },
+            Main: {
+              screens: {
+                Home: 'home',
+              },
+            },
+          },
+        },
+      }}
       theme={{
         dark: false,
         colors: {
@@ -381,6 +408,11 @@ const Navigation = () => {
         ) : (
           <RootStack.Screen name="Auth" component={AuthNavigator} />
         )}
+        <RootStack.Screen 
+          name="PasswordReset" 
+          component={ResetPasswordScreen} 
+          options={{ headerShown: false }} 
+        />
       </RootStack.Navigator>
     </NavigationContainer>
   );

@@ -407,20 +407,6 @@ const DayWorkoutScreen = () => {
       <Header
         title={dayName}
         showBack={!isTrainingMode}
-        rightComponent={
-          !isTrainingMode ? (
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => navigation.navigate('AddExercise' as never, { 
-                dayWorkout: workout, 
-                routineId,
-                dayKey
-              } as never)}
-            >
-              <Ionicons name="add" size={24} color="white" />
-            </TouchableOpacity>
-          ) : undefined
-        }
       />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
