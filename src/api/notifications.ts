@@ -1,5 +1,25 @@
 import { Notification } from '@/types';
 import { supabase } from './auth';
+import * as Notifications from 'expo-notifications';
+
+// Función para generar UUID v4
+const generateUUID = (): string => {
+  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+  return uuid;
+};
+
+// Configurar el comportamiento de notificaciones push
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 export const notificationsApi = {
   /**
@@ -50,6 +70,13 @@ export const notificationsApi = {
       
       if (!user) {
         console.warn('No user logged in');
+        return null;
+      }
+
+      // Verificar si la notificación ya existe antes de crear
+      const existingNotification = await this.notificationExists(notification.id);
+      if (existingNotification) {
+        console.warn('Notification already exists with id:', notification.id);
         return null;
       }
 
@@ -152,6 +179,62 @@ export const notificationsApi = {
       return !!data;
     } catch (error) {
       console.error('Error in notificationExists:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Send push notification for delivery
+   */
+  async sendDeliveryPushNotification(
+    orderNumber: string,
+    deliveryDate: string
+  ): Promise<boolean> {
+    try {
+      const formattedDate = new Date(deliveryDate).toLocaleDateString('es-MX', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '✅ ¡Tu orden fue entregada!',
+          body: `Tu orden #${orderNumber} fue entregada el ${formattedDate}`,
+          data: {
+            orderNumber,
+            deliveryDate,
+            type: 'delivery',
+          },
+        },
+        trigger: null, // Mostrar inmediatamente
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error sending delivery push notification:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Request notification permissions
+   */
+  async requestNotificationPermissions(): Promise<boolean> {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      return finalStatus === 'granted';
+    } catch (error) {
+      console.error('Error requesting notification permissions:', error);
       return false;
     }
   },

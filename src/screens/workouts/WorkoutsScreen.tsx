@@ -156,21 +156,33 @@ const WorkoutsScreen = () => {
 
       // Cargar sesiones de hoy SOLO para la rutina activa
       const today = new Date();
-      const todayLocal = today.toLocaleDateString('en-CA'); // YYYY-MM-DD in local tz
+      
+      // Obtener fecha de hoy en formato YYYY-MM-DD usando variables locales explícitas
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayLocal = `${year}-${month}-${day}`;
+      
       const todayKey = getCurrentDay();
 
       if (active?.id) {
         try {
           const sessions = await workoutSessionsApi.getSessions(20);
           const todaysSessionsList = sessions.filter((s: any) => {
-            const completed = s.completed_at ? new Date(s.completed_at) : null;
-            if (!completed) return false;
-            const completedLocal = completed.toLocaleDateString('en-CA');
-            return (
-              completedLocal === todayLocal &&
-              s.routine_id === active.id &&
-              s.day_key === todayKey
-            );
+            if (!s.completed_at) return false;
+            
+            const completedDate = new Date(s.completed_at);
+            const completedYear = completedDate.getFullYear();
+            const completedMonth = String(completedDate.getMonth() + 1).padStart(2, '0');
+            const completedDay = String(completedDate.getDate()).padStart(2, '0');
+            const completedLocal = `${completedYear}-${completedMonth}-${completedDay}`;
+            
+            // Validar por fecha exacta, rutina, y día de la semana
+            const isToday = completedLocal === todayLocal;
+            const isSameRoutine = s.routine_id === active.id;
+            const isSameDayOfWeek = s.day_key === todayKey;
+            
+            return isToday && isSameRoutine && isSameDayOfWeek;
           });
           setTodaysSessions(todaysSessionsList);
         } catch (error) {
@@ -200,16 +212,41 @@ const WorkoutsScreen = () => {
   }, []);
 
   // Recargar datos cuando la pantalla se enfoca (después de crear rutina)
+  // IMPORTANTE: Esto se ejecuta cada vez que el usuario regresa a esta pantalla
   useFocusEffect(
     React.useCallback(() => {
       loadData();
-    }, [])
+    }, []) // Dependencias vacías aseguran que se ejecute en cada enfoque
   );
 
   const getCurrentDay = (): WeekDay => {
     const today = new Date().getDay();
     const dayMap: WeekDay[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     return dayMap[today];
+  };
+
+  /**
+   * Validar si el usuario ya completó el entrenamiento HOY (misma fecha exacta)
+   */
+  const isCompletedToday = (): boolean => {
+    if (todaysSessions.length === 0) return false;
+    
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayLocal = `${year}-${month}-${day}`;
+
+    return todaysSessions.some(session => {
+      if (!session.completed_at) return false;
+      const completedDate = new Date(session.completed_at);
+      const completedYear = completedDate.getFullYear();
+      const completedMonth = String(completedDate.getMonth() + 1).padStart(2, '0');
+      const completedDay = String(completedDate.getDate()).padStart(2, '0');
+      const completedLocal = `${completedYear}-${completedMonth}-${completedDay}`;
+      
+      return completedLocal === todayLocal;
+    });
   };
 
   const handleSetActiveRoutine = async (routineId: string) => {
@@ -262,8 +299,8 @@ const WorkoutsScreen = () => {
       return;
     }
 
-    // Validar que no se haya completado ya hoy
-    if (todaysSessions.length > 0) {
+    // Validar que no se haya completado ya HOY (fecha exacta, no solo día de semana)
+    if (isCompletedToday()) {
       Alert.alert('Entrenamiento completado', 'Ya completaste el entrenamiento de hoy. Vuelve mañana');
       return;
     }
@@ -298,7 +335,7 @@ const WorkoutsScreen = () => {
   }, [activeTrainingSession, activeRoutine, today]);
 
   const getButtonTitle = (): string => {
-    if (todaysSessions.length > 0) return '✓ Completado';
+    if (isCompletedToday()) return '✓ Completado';
     if (isCurrentSessionActive) return 'Continuar';
     if (todayWorkout) return 'Empezar';
     return 'Día libre, disfruta el descanso';
@@ -375,9 +412,6 @@ const WorkoutsScreen = () => {
                   <Ionicons name="flame" size={16} color={colors.primary} />
                   <Text style={[styles.heroBadgeText, { color: colors.primary }]}>Rutina activa</Text>
                 </View>
-                  <TouchableOpacity onPress={() => { void handleCreateRoutinePress(); }}>
-                  <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
               </View>
 
               <Text style={[styles.heroTitle, { color: colors.text }]}>{activeRoutine.name}</Text>
@@ -411,7 +445,7 @@ const WorkoutsScreen = () => {
                     {todayWorkout && (
                       <Text style={[styles.todayMeta, { color: colors.textSecondary }]}>{todayWorkout.exercises.length} ejercicios · {todayWorkout.estimatedDuration || 60} min</Text>
                     )}
-                    {todaysSessions.length > 0 && (
+                    {isCompletedToday() && (
                       <View style={[styles.completedBadge, { backgroundColor: colors.success + '20' }]}>
                         <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                         <Text style={[styles.completedText, { color: colors.success }]}>Completado hoy</Text>
@@ -422,11 +456,11 @@ const WorkoutsScreen = () => {
                 <Button
                   title={getButtonTitle()}
                   size="small"
-                  disabled={todaysSessions.length > 0}
+                  disabled={isCompletedToday()}
                   onPress={() => {
-                    if (todayWorkout && todaysSessions.length === 0) {
+                    if (todayWorkout && !isCompletedToday()) {
                       handleDayPress(today, todayWorkout);
-                    } else if (!todayWorkout && todaysSessions.length === 0) {
+                    } else if (!todayWorkout && !isCompletedToday()) {
                       Alert.alert(
                         '¡Día libre!',
                         'Disfruta el descanso, lo merecés! 💪'
@@ -459,7 +493,7 @@ const WorkoutsScreen = () => {
               {weekDays.map(day => {
                 const workout = activeRoutine.weeklyPlan[day.key];
                 const isToday = today === day.key;
-                const isCompleted = todaysSessions.length > 0 && isToday;
+                const isCompleted = isToday && isCompletedToday();
                 
                 return (
                   <TouchableOpacity

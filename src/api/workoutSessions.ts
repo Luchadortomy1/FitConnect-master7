@@ -30,6 +30,10 @@ export const workoutSessionsApi = {
     }
 
     try {
+      // Obtener fecha/hora actual en ISO format
+      const now = new Date();
+      const completedAt = now.toISOString();
+
       const { data, error } = await supabase
         .from('workout_sessions')
         .insert({
@@ -41,7 +45,7 @@ export const workoutSessionsApi = {
           total_sets: sessionData.total_sets,
           completion_rate: sessionData.completion_rate,
           elapsed_time_seconds: sessionData.elapsed_time_seconds,
-          completed_at: new Date().toISOString(),
+          completed_at: completedAt,
         })
         .select();
 
@@ -50,7 +54,7 @@ export const workoutSessionsApi = {
         throw error;
       }
 
-      console.log('Workout session saved:', data);
+      console.log('Workout session saved successfully:', data);
       return data;
     } catch (error) {
       console.error('Error in saveSession:', error);

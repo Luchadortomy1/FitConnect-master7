@@ -188,6 +188,92 @@ const ReceiptScreen = () => {
     }
   }, [orderId]);
 
+  // Monitorear cambios en delivery_status
+  useEffect(() => {
+    if (!orderId || !order) return;
+
+    // Solicitar permisos de notificación
+    notificationsApi.requestNotificationPermissions();
+
+    // Configurar polling para cambios en delivery_status
+    let isMounted = true;
+    const deliveryCheckInterval = setInterval(async () => {
+      if (!isMounted || monitoringDelivery) return;
+      
+      setMonitoringDelivery(true);
+      
+      try {
+        const { data: updatedOrder } = await supabase
+          .from('orders')
+          .select('delivery_status, delivery_date')
+          .eq('id', orderId)
+          .single();
+
+        if (!isMounted) return;
+
+        if (updatedOrder) {
+          // Verificar si hubo cambio de status y enviar notificación
+          if (
+            updatedOrder.delivery_status === 'delivered' &&
+            previousDeliveryStatus !== 'delivered'
+          ) {
+            // Crear ID único para la notificación basado en orderId
+            const notificationId = `delivery_${orderId}`;
+
+            // Enviar push notification
+            await notificationsApi.sendDeliveryPushNotification(
+              order.id.substring(0, 8),
+              updatedOrder.delivery_date
+            );
+
+            // Crear notificación en la BD (si no existe)
+            const notificationRecord = {
+              id: notificationId,
+              title: '✅ ¡Tu orden fue entregada!',
+              message: `Tu orden fue entregada el ${new Date(updatedOrder.delivery_date).toLocaleDateString('es-MX')}`,
+              date: new Date().toISOString(),
+              read: false,
+              type: 'general' as const,
+              data: {
+                orderId,
+                deliveryDate: updatedOrder.delivery_date,
+              },
+            };
+
+            await notificationsApi.createNotification(notificationRecord);
+
+            // Actualizar estado local
+            if (isMounted) {
+              setPreviousDeliveryStatus('delivered');
+              setOrder(prev => prev ? {
+                ...prev,
+                delivery_status: 'delivered',
+                delivery_date: updatedOrder.delivery_date
+              } : null);
+
+              // Mostrar alerta
+              Alert.alert(
+                '✅ ¡Tu orden fue entregada!',
+                `Tu pedido fue entregado el ${new Date(updatedOrder.delivery_date).toLocaleDateString('es-MX')}`
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error monitoring delivery status:', error);
+      } finally {
+        if (isMounted) {
+          setMonitoringDelivery(false);
+        }
+      }
+    }, 5000); // Verificar cada 5 segundos
+
+    return () => {
+      isMounted = false;
+      clearInterval(deliveryCheckInterval);
+    };
+  }, [orderId, order, previousDeliveryStatus]);
+
   const fetchOrderDetails = async () => {
     try {
       // Obtener detalles de la orden

@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, CommonActions } from '@react-navigation/native';
@@ -16,11 +17,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Spacing } from '@/constants/theme';
-import { DayWorkout, Supplement } from '@/types';
+import { DayWorkout, Supplement, WeeklyRoutine } from '@/types';
 import { routinesApi, storeApi, userSubscriptionsApi, gymsApi } from '@/api';
+import { workoutSessionsApi } from '@/api/workoutSessions';
 import { useApp } from '@/contexts/AppContext';
 import { checkSubscriptionNotifications } from '@/utils/subscriptionNotifications';
 import { useAppDialog } from '@/hooks/useAppDialog';
+import { getExerciseImageSource } from '@/utils/exerciseMedia';
+import { fetchExerciseImage } from '@/api/exerciseMediaApi';
 
 const { width } = Dimensions.get('window');
 const CAROUSEL_CARD_HEIGHT = 320;
@@ -48,8 +52,12 @@ const HomeScreen = () => {
   const [todayWorkout, setTodayWorkout] = useState<DayWorkout | null>(null);
   const [recommendedSupplements, setRecommendedSupplements] = useState<Supplement[]>([]);
   const [gymSubscriptions, setGymSubscriptions] = useState<GymSubscription[]>([]);
+  const [routines, setRoutines] = useState<WeeklyRoutine[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [remoteExerciseImage, setRemoteExerciseImage] = useState<string | null>(null);
+  const [remoteImageLoading, setRemoteImageLoading] = useState(false);
+  const [todaysSessions, setTodaysSessions] = useState<any[]>([]);
 
   // Calcular notificaciones sin leer
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -80,6 +88,19 @@ const HomeScreen = () => {
       const subscriptions = await userSubscriptionsApi.getUserAllSubscriptions();
       const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
       
+      // Cargar rutinas del usuario
+      const routinesData = await routinesApi.getRoutines();
+      setRoutines(Array.isArray(routinesData) ? routinesData : []);
+
+      // Cargar sesiones de hoy
+      try {
+        const sessions = await workoutSessionsApi.getSessions(100);
+        setTodaysSessions(Array.isArray(sessions) ? sessions : []);
+      } catch (error) {
+        console.log('Error loading sessions:', error);
+        setTodaysSessions([]);
+      }
+
       // Cargar otros datos
       const [workout, supplements] = await Promise.all([
         routinesApi.getTodayWorkout(),
@@ -195,6 +216,30 @@ const HomeScreen = () => {
     setRefreshing(false);
   };
 
+  /**
+   * Validar si el usuario ya completó el entrenamiento HOY (misma fecha exacta)
+   */
+  const isTrainingCompletedToday = (): boolean => {
+    if (todaysSessions.length === 0) return false;
+    
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayLocal = `${year}-${month}-${day}`;
+
+    return todaysSessions.some(session => {
+      if (!session.completed_at) return false;
+      const completedDate = new Date(session.completed_at);
+      const completedYear = completedDate.getFullYear();
+      const completedMonth = String(completedDate.getMonth() + 1).padStart(2, '0');
+      const completedDay = String(completedDate.getDate()).padStart(2, '0');
+      const completedLocal = `${completedYear}-${completedMonth}-${completedDay}`;
+      
+      return completedLocal === todayLocal;
+    });
+  };
+
   useEffect(() => {
     loadDashboardData();
     // Chequear notificaciones de expiración cada vez que carga el home
@@ -209,6 +254,48 @@ const HomeScreen = () => {
       checkAndAddExpirationNotifications();
     }, [])
   );
+
+  // Cargar imagen remota del primer ejercicio cuando hay rutina activa
+  useEffect(() => {
+    const loadRemoteExerciseImage = async () => {
+      const activeRoutine = routines.find(r => r.isActive);
+      if (!activeRoutine) {
+        setRemoteExerciseImage(null);
+        return;
+      }
+
+      const today = new Date().getDay();
+      const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const todayKey = dayMap[today] as any;
+      const todayWorkout = activeRoutine.weeklyPlan[todayKey as keyof typeof activeRoutine.weeklyPlan];
+      const firstExercise = todayWorkout?.exercises?.[0];
+
+      if (!firstExercise) {
+        setRemoteExerciseImage(null);
+        return;
+      }
+
+      // Si hay imagen local, no buscar remota
+      const hasLocal = Boolean(getExerciseImageSource(firstExercise.name));
+      if (hasLocal) {
+        setRemoteExerciseImage(null);
+        return;
+      }
+
+      setRemoteImageLoading(true);
+      try {
+        const imgUrl = await fetchExerciseImage(firstExercise.name);
+        setRemoteExerciseImage(imgUrl);
+      } catch (error) {
+        console.log('Error fetching exercise image:', error);
+        setRemoteExerciseImage(null);
+      } finally {
+        setRemoteImageLoading(false);
+      }
+    };
+
+    loadRemoteExerciseImage();
+  }, [routines]);
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
@@ -357,32 +444,96 @@ const HomeScreen = () => {
             alwaysBounceHorizontal={false}
             overScrollMode="never"
           >
-            {/* Ver Rutinas */}
-            <View style={styles.carouselPage}>
-              <Card key="routines" style={styles.carouselCard}>
-                <TouchableOpacity
-                  style={styles.carouselContent}
-                  onPress={() => navigation.navigate('Workouts' as never)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.carouselIcon, { backgroundColor: colors.primary + '20' }]}>
-                    <Ionicons name="fitness-outline" size={32} color={colors.primary} />
-                  </View>
-                  <Text style={[styles.carouselTitle, { color: colors.text }]}>
-                    Mis Rutinas
-                  </Text>
-                  <Text style={[styles.carouselSubtitle, { color: colors.textSecondary }]}>
-                    Gestiona y realiza tus entrenamientos
-                  </Text>
-                  <View style={[styles.carouselButton, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.carouselButtonText}>Ver Rutinas</Text>
-                  </View>
-                </TouchableOpacity>
-              </Card>
-            </View>
+            {/* Mis Rutinas - Rutina Activa */}
+            {(() => {
+              const activeRoutine = routines.find(r => r.isActive);
+              if (!activeRoutine) return null;
+              
+              const today = new Date().getDay();
+              const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+              const todayKey = dayMap[today] as any;
+              const todayWorkout = activeRoutine.weeklyPlan[todayKey as keyof typeof activeRoutine.weeklyPlan];
+              const firstExercise = todayWorkout?.exercises?.[0] || null;
+              const exerciseImage = firstExercise ? getExerciseImageSource(firstExercise.name) : null;
+              const isCompleted = isTrainingCompletedToday();
+              
+              return (
+                <View style={[styles.carouselPage, { opacity: isCompleted ? 0.7 : 1 }]}>
+                  <Card style={styles.carouselCard}>
+                    <TouchableOpacity
+                      style={[styles.carouselContent, { paddingVertical: 12, paddingHorizontal: 12 }]}
+                      onPress={() => navigation.navigate('Workouts' as never)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 8 }}>
+                        <Text style={[styles.carouselTitle, { color: colors.text, fontSize: 18, fontWeight: 'bold', flex: 1 }]}>
+                          Mis Rutinas
+                        </Text>
+                        {isCompleted && (
+                          <View style={[{ backgroundColor: colors.success, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }, styles.completedBadge]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Ionicons name="checkmark-circle" size={14} color="white" />
+                              <Text style={{ color: 'white', fontSize: 11, fontWeight: '600' }}>Completado</Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                      
+                      {todayWorkout && (
+                        <View style={[styles.carouselIcon, { height: 95, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '10', borderRadius: 8, marginBottom: 12, overflow: 'hidden', width: '100%' }]}>
+                          {exerciseImage ? (
+                            <Image 
+                              source={exerciseImage} 
+                              style={{ width: '100%', height: '100%' }}
+                              resizeMode="cover"
+                            />
+                          ) : remoteExerciseImage ? (
+                            <Image 
+                              source={{ uri: remoteExerciseImage }}
+                              style={{ width: '100%', height: '100%' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ alignItems: 'center', gap: 8 }}>
+                              {remoteImageLoading ? (
+                                <ActivityIndicator size="large" color={colors.primary} />
+                              ) : (
+                                <Ionicons name="barbell-outline" size={48} color={colors.primary} />
+                              )}
+                            </View>
+                          )}
+                          {firstExercise && (
+                            <View style={[styles.exerciseNameBadge, { position: 'absolute', bottom: 0, width: '100%' }]}>
+                              <Text style={styles.exerciseBadgeText} numberOfLines={1}>
+                                {firstExercise.name}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      
+                      <Text style={[styles.carouselTitle, { color: colors.text, fontSize: 16, fontWeight: 'bold', marginBottom: 4 }]}>
+                        {activeRoutine.name}
+                      </Text>
+                      <Text style={[styles.carouselSubtitle, { color: colors.textSecondary, fontSize: 14, marginBottom: 12 }]}>
+                        {todayWorkout ? `${todayWorkout.exercises.length} ejercicios` : 'Día libre'}
+                      </Text>
+                      <View style={[styles.carouselButton, { backgroundColor: isCompleted ? colors.success : colors.primary, marginTop: 8, paddingHorizontal: 20, paddingVertical: 10 }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                          <Ionicons name={isCompleted ? "checkmark-circle" : "play"} size={16} color="white" />
+                          <Text style={[styles.carouselButtonText, { fontSize: 14 }]}>
+                            {isCompleted ? 'Entrenamiento Completado' : 'Realizar'}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  </Card>
+                </View>
+              );
+            })()}
 
             {/* Gimnasios */}
-            {gymSubscriptions.map((gymSubscription) => (
+            {gymSubscriptions.filter(sub => sub.status !== 'expired').map((gymSubscription) => (
               <View key={gymSubscription.id} style={styles.carouselPage}>
                 <Card style={styles.carouselCard}>
                   <View style={styles.carouselContent}>
@@ -484,6 +635,8 @@ const HomeScreen = () => {
             </View>
           </ScrollView>
         </View>
+
+
 
         {/* Recommended Supplements */}
         {gymSubscriptions.length > 0 && (
@@ -1043,6 +1196,56 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  routinesCarouselContainer: {
+    paddingRight: Spacing.md,
+    gap: 12,
+    paddingVertical: 4,
+  },
+  routineHomeCard: {
+    overflow: 'hidden',
+    borderRadius: 12,
+  },
+  routineImageContainer: {
+    width: '100%',
+    height: 120,
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  routineImage: {
+    width: '100%',
+    height: '100%',
+  },
+  exerciseNameBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  exerciseBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  routineInfoContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  routineNameHome: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  routineDescHome: {
+    fontSize: 12,
+  },
+  completedBadge: {
+    flexShrink: 1,
   },
 });
 
