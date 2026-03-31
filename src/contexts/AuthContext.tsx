@@ -87,10 +87,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const parseUrlParams = (url: string) => {
       try {
         const hash = url.split('#')[1] || '';
-        return new URLSearchParams(hash);
+        const query = url.split('?')[1]?.split('#')[0] || '';
+        // Supabase puts tokens in the hash; some platforms may drop it to query
+        return new URLSearchParams(hash || query);
       } catch (error) {
         return new URLSearchParams();
       }
+    };
+
+    const navigateWhenReady = (action: () => void, attempts = 0) => {
+      if (navigationHelper.navigationRef?.isReady()) {
+        action();
+        return;
+      }
+      if (attempts > 40) return; // ~2s guard
+      setTimeout(() => navigateWhenReady(action, attempts + 1), 50);
     };
 
     const handleAuthDeepLink = async (url: string) => {
@@ -100,17 +111,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         const params = parseUrlParams(url);
-        const type = params.get('type');
+        let type = params.get('type');
 
-        const { data, error } = await supabase.auth.getSessionFromUrl({ url, storeSession: true });
+        // Fallback detection if type is missing
+        if (!type) {
+          if (url.includes('reset-password')) type = 'recovery';
+          if (url.includes('email-confirm')) type = 'signup';
+        }
+
+        console.log('Deep link received', { url, type, hasAccessToken: params.has('access_token'), hasRefreshToken: params.has('refresh_token') });
+
+        let { data, error } = await supabase.auth.getSessionFromUrl({ url, storeSession: true });
+
         if (error) {
           console.warn('Deep link session error:', error.message);
-          if (error.message.includes('Invalid Refresh Token')) {
-            await supabase.auth.signOut();
-            await SecureStore.deleteItemAsync('supabase.auth.token');
+
+          // Fallback: try verifyOtp with token_hash if available
+          const tokenHash = params.get('token');
+          if (tokenHash && (type === 'recovery' || type === 'signup')) {
+            const verifyType = type === 'recovery' ? 'recovery' : 'signup';
+            const verify = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: verifyType });
+            if (verify.data?.session) {
+              data = verify.data;
+              error = null;
+            } else if (verify.error) {
+              console.warn('Fallback verifyOtp error:', verify.error.message);
+            }
           }
-          processedDeepLinks.current.delete(url);
-          return;
+
+          if (error) {
+            if (error.message.includes('Invalid Refresh Token')) {
+              await supabase.auth.signOut();
+              await SecureStore.deleteItemAsync('supabase.auth.token');
+            }
+            processedDeepLinks.current.delete(url);
+            Alert.alert('Enlace no válido', 'El enlace de autenticación no se pudo validar. Intenta de nuevo.');
+            return;
+          }
         }
 
         if (data.session) {
@@ -126,17 +163,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             'Recupera tu contraseña',
             'Validamos tu enlace. Crea tu nueva contraseña directamente en la app.'
           );
-          navigationHelper.navigate('PasswordReset');
+          navigateWhenReady(() => navigationHelper.navigate('PasswordReset'));
         } else if (type === 'signup') {
           Alert.alert(
             'Correo verificado',
             'Tu correo fue confirmado. Ya puedes entrar a FitConnect.'
           );
-          navigationHelper.navigate('Main');
+          navigateWhenReady(() => navigationHelper.navigate('Main'));
+        } else {
+          // If we got a session but no type, still move past login
+          navigateWhenReady(() => navigationHelper.navigate('Main'));
         }
       } catch (error) {
         console.warn('Error handling auth deep link:', error);
         processedDeepLinks.current.delete(url);
+        Alert.alert('Enlace no válido', 'No se pudo procesar el enlace. Intenta de nuevo.');
       }
     };
 

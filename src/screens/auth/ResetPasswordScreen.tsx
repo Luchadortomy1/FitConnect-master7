@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { updatePassword } from '@/api/auth';
@@ -80,17 +81,18 @@ const ResetPasswordScreen = () => {
       flexGrow: 1,
       justifyContent: 'flex-start',
       paddingHorizontal: Spacing.lg,
-      paddingTop: Spacing.sm,
+      paddingTop: Spacing.lg,
       paddingBottom: Spacing.xl,
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: Spacing.xs,
+      marginBottom: Spacing.sm,
+      paddingHorizontal: Spacing.sm,
     },
     backButton: {
       padding: Spacing.sm,
-      marginLeft: -Spacing.sm,
+      marginLeft: -Spacing.xs,
     },
     iconContainer: {
       alignItems: 'center',
@@ -129,9 +131,12 @@ const ResetPasswordScreen = () => {
       flexDirection: 'row',
       alignItems: 'center',
       position: 'relative',
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.md,
     },
     input: {
       flex: 1,
+      minHeight: 52,
     },
     showPasswordButton: {
       position: 'absolute',
@@ -150,7 +155,7 @@ const ResetPasswordScreen = () => {
   });
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
@@ -224,7 +229,7 @@ const ResetPasswordScreen = () => {
           />
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
