@@ -121,33 +121,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         console.log('Deep link received', { url, type, hasAccessToken: params.has('access_token'), hasRefreshToken: params.has('refresh_token') });
 
-        let { data, error } = await supabase.auth.getSessionFromUrl({ url, storeSession: true });
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        let data: any = null;
 
-        if (error) {
-          console.warn('Deep link session error:', error.message);
+        if (accessToken && refreshToken) {
+          const setResult = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          data = setResult.data;
+          if (setResult.error) {
+            console.warn('Deep link setSession error:', setResult.error.message);
+          }
+        }
 
-          // Fallback: try verifyOtp with token_hash if available
+        // Fallback: try Supabase helper if available
+        if (!data?.session && typeof (supabase.auth as any).getSessionFromUrl === 'function') {
+          const { data: helperData, error: helperError } = await supabase.auth.getSessionFromUrl({ url, storeSession: true });
+          if (helperData?.session) data = helperData;
+          if (helperError) console.warn('Deep link session helper error:', helperError.message);
+        }
+
+        // Fallback: verifyOtp with token_hash if still no session
+        if (!data?.session) {
           const tokenHash = params.get('token');
           if (tokenHash && (type === 'recovery' || type === 'signup')) {
             const verifyType = type === 'recovery' ? 'recovery' : 'signup';
             const verify = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: verifyType });
             if (verify.data?.session) {
               data = verify.data;
-              error = null;
             } else if (verify.error) {
               console.warn('Fallback verifyOtp error:', verify.error.message);
             }
           }
+        }
 
-          if (error) {
-            if (error.message.includes('Invalid Refresh Token')) {
-              await supabase.auth.signOut();
-              await SecureStore.deleteItemAsync('supabase.auth.token');
-            }
-            processedDeepLinks.current.delete(url);
-            Alert.alert('Enlace no válido', 'El enlace de autenticación no se pudo validar. Intenta de nuevo.');
-            return;
-          }
+        if (!data?.session) {
+          await supabase.auth.signOut();
+          await SecureStore.deleteItemAsync('supabase.auth.token');
+          processedDeepLinks.current.delete(url);
+          Alert.alert('Enlace no válido', 'El enlace de autenticación no se pudo validar. Intenta de nuevo.');
+          return;
         }
 
         if (data.session) {
