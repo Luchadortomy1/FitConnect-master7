@@ -6,8 +6,10 @@ import { decode } from 'base64-arraybuffer';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/supabase';
 import { routinesApi } from '@/api/routines';
 
-const RECOVERY_REDIRECT = 'fitconnect://reset-password';
-const SIGNUP_REDIRECT = 'fitconnect://email-confirm';
+// Auth email callback in production (Vercel)
+const WEB_AUTH_CALLBACK_URL = 'https://webcorreos.vercel.app/auth/callback';
+const RECOVERY_REDIRECT = WEB_AUTH_CALLBACK_URL;
+const SIGNUP_REDIRECT = WEB_AUTH_CALLBACK_URL;
 
 // Ensures a profile row exists and returns it; tries to backfill name from metadata/email
 const ensureProfileExists = async (user: any) => {
@@ -389,7 +391,7 @@ export const uploadAvatar = async (userId: string, uri: string) => {
 export const requestPasswordReset = async (email: string) => {
   try {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Deep link handled in-app: configured in Supabase Auth Settings as well
+      // Redirect handled by auth web callback route
       redirectTo: RECOVERY_REDIRECT,
     });
 
