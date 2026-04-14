@@ -52,7 +52,7 @@ export const notificationsApi = {
         message: record.message,
         date: record.date,
         read: record.read,
-        type: record.type as 'workout' | 'supplement' | 'general' | 'achievement' | 'subscription',
+        type: record.type as 'workout' | 'supplement' | 'general' | 'achievement' | 'subscription' | 'order',
         data: record.data || {},
       }));
     } catch (error) {

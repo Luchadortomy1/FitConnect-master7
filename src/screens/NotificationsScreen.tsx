@@ -5,9 +5,9 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -69,6 +69,23 @@ const NotificationsScreen = () => {
             params: { productId: notification.data.product_id },
             initial: false
           }
+        } as never);
+      } else if (notification.type === 'order') {
+        const orderId = (notification.data?.order_id || notification.data?.orderId) as string | undefined;
+
+        if (!orderId) {
+          Alert.alert('Orden no disponible', 'No se encontró el identificador de la orden en esta notificación.');
+          return;
+        }
+
+        // Navigate directly to receipt inside the Store stack
+        rootNav.navigate('Main' as never, {
+          screen: 'Store',
+          params: {
+            screen: 'Receipt',
+            params: { orderId },
+            initial: false,
+          },
         } as never);
       }
     } catch (error) {

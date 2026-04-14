@@ -218,6 +218,12 @@ const StoreScreen = () => {
   const renderSupplementItem = ({ item: supplement }: { item: Supplement }) => {
     const cartCount = getCartItemCount(supplement.id);
     const isOutOfStock = supplement.stock === 0;
+    const productDescription = [
+      supplement.description,
+      supplement.gym_name ? `Gym: ${supplement.gym_name}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
     
     return (
       <View style={[styles.productCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: isOutOfStock ? 0.5 : 1 }]}>
@@ -253,7 +259,7 @@ const StoreScreen = () => {
             </Text>
             
             <Text style={[styles.productDescription, { color: colors.textSecondary }]} numberOfLines={3}>
-              {supplement.description}
+              {productDescription}
             </Text>
             
             <Text style={[styles.productPrice, { color: colors.primary }]}>

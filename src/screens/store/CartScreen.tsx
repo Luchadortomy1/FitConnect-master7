@@ -29,7 +29,6 @@ const CartScreen = () => {
   const { cart, removeFromCart, updateCartQuantity, clearCart, cartTotal, addNotification } = useApp();
   const { user } = useAuth();
   const [processing, setProcessing] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
 
   const handleRemoveItem = (supplementId: string) => {
     Alert.alert('Eliminar producto', '¿Deseas eliminar este producto del carrito?', [
@@ -88,6 +87,7 @@ const CartScreen = () => {
     }
 
     let newOrderId: string | null = null;
+    let paymentCompleted = false;
 
     try {
       setProcessing(true);
@@ -107,8 +107,6 @@ const CartScreen = () => {
       if (!newOrderId) {
         throw new Error('No se pudo crear la orden');
       }
-
-      setOrderId(newOrderId);
 
       // Crear payment intent
       const paymentData = await ordersApi.createPaymentIntent(user.id, cartTotal, items);
@@ -149,9 +147,27 @@ const CartScreen = () => {
         throw new Error('Payment failed: ' + paymentResponse.error.message);
       }
 
+      paymentCompleted = true;
+
       // Confirmar el pago
-      await ordersApi.confirmOrderPayment(newOrderId);
+      const orderFinalized = await ordersApi.confirmOrderPayment(newOrderId);
+
+      // El pago se completó; vaciamos carrito para evitar intentos duplicados
       clearCart();
+
+      if (!orderFinalized) {
+        Alert.alert(
+          'Pago recibido',
+          'Tu pago se procesó correctamente, pero hubo un problema al actualizar el inventario. Tu orden quedó registrada.',
+          [
+            {
+              text: 'Ver comprobante',
+              onPress: () => navigation.navigate('Receipt' as never, { orderId: newOrderId } as never),
+            },
+          ]
+        );
+        return;
+      }
 
       // Agregar notificación de compra exitosa
       await addNotification({
@@ -167,8 +183,8 @@ const CartScreen = () => {
       // Navegar a la pantalla de comprobante
       navigation.navigate('Receipt' as never, { orderId: newOrderId } as never);
     } catch (error) {
-      // Si hay error y fue creada la orden, eliminarla
-      if (newOrderId) {
+      // Si falla antes de completar pago, limpiar orden temporal
+      if (newOrderId && !paymentCompleted) {
         await ordersApi.deleteOrder(newOrderId);
       }
       
@@ -176,7 +192,6 @@ const CartScreen = () => {
       Alert.alert('Error en el pago', error instanceof Error ? error.message : 'Hubo un error procesando tu compra');
     } finally {
       setProcessing(false);
-      setOrderId(null);
     }
   };
 

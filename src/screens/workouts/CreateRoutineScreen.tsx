@@ -118,36 +118,43 @@ const CreateRoutineScreen = () => {
       return;
     }
 
+    if (!selectedTemplateId) {
+      Alert.alert('Selecciona paquete de ejercicios', 'Debes elegir una rutina recomendada para que tu rutina tenga ejercicios asignados.');
+      return;
+    }
+
+    const template = getTemplateById(selectedTemplateId);
+    if (!template) {
+      Alert.alert('Plantilla inválida', 'No se pudo cargar el paquete de ejercicios seleccionado.');
+      return;
+    }
+
+    const daysWithoutExercises = [...selectedDays].filter((day) => {
+      const templateDay = template.workouts[day];
+      return !templateDay || templateDay.exercises.length === 0;
+    });
+
+    if (daysWithoutExercises.length > 0) {
+      Alert.alert(
+        'Faltan ejercicios',
+        'Uno o más días seleccionados no tienen ejercicios en el paquete. Ajusta los días o selecciona otra rutina recomendada.'
+      );
+      return;
+    }
+
     setIsCreating(true);
 
     try {
       const weeklyPlan: Partial<WeeklyRoutine['weeklyPlan']> = {};
 
-      if (selectedTemplateId) {
-        const template = getTemplateById(selectedTemplateId);
-        if (template) {
-          for (const day of selectedDays) {
-            const templateDay = template.workouts[day];
-            if (templateDay) {
-              weeklyPlan[day] = {
-                id: `day-${Date.now()}-${day}`,
-                name: templateDay.name,
-                exercises: templateDay.exercises,
-                estimatedDuration: 60,
-              };
-            }
-          }
-        }
-      } else {
-        for (const day of selectedDays) {
-          const dayLabel = weekDays.find(d => d.key === day)?.label || day;
-          weeklyPlan[day] = {
-            id: `day-${Date.now()}-${day}`,
-            name: `Entrenamiento ${dayLabel}`,
-            exercises: [],
-            estimatedDuration: 60,
-          };
-        }
+      for (const day of selectedDays) {
+        const templateDay = template.workouts[day];
+        weeklyPlan[day] = {
+          id: `day-${Date.now()}-${day}`,
+          name: templateDay.name,
+          exercises: templateDay.exercises,
+          estimatedDuration: 60,
+        };
       }
 
       const newRoutine: Omit<WeeklyRoutine, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -177,17 +184,6 @@ const CreateRoutineScreen = () => {
       <Header
         title="Crear Nueva Rutina"
         showBack
-        rightAction={{
-          icon: (
-            <Text style={[styles.createText, { color: colors.primary }, isCreating && { color: colors.textSecondary }]}> 
-              {isCreating ? 'Creando...' : 'Crear'}
-            </Text>
-          ),
-          onPress: () => {
-            void createRoutine();
-          },
-          accessibilityLabel: 'Crear rutina',
-        }}
       />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -322,7 +318,7 @@ const CreateRoutineScreen = () => {
       </ScrollView>
 
       <View style={[styles.bottomContainer, { backgroundColor: colors.surface }]}>
-        <Button title="Crear Rutina" onPress={createRoutine} disabled={!routineName.trim() || selectedDays.size === 0 || isCreating} />
+        <Button title="Crear Rutina" onPress={createRoutine} disabled={!routineName.trim() || selectedDays.size === 0 || !selectedTemplateId || isCreating} />
       </View>
     </View>
   );
@@ -334,10 +330,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-  },
-  createText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
   section: {
     paddingHorizontal: 16,

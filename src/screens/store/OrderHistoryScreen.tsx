@@ -22,7 +22,7 @@ interface OrderSummary {
   id: string;
   total_amount: number;
   created_at: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' | 'paid' | 'failed';
   gym_id?: string;
   gym_name?: string;
   item_count: number;
@@ -105,6 +105,7 @@ const OrderHistoryScreen = () => {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'paid':
         return 'Completada';
       case 'pending':
         return 'Pendiente';
@@ -118,6 +119,7 @@ const OrderHistoryScreen = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'paid':
         return colors.success || '#10B981';
       case 'pending':
         return colors.warning || '#F59E0B';

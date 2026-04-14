@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { supabase } from '@/api/auth';
 import { Header } from '@/components/Header';
 import { initPaymentSheet, presentPaymentSheet } from '@stripe/stripe-react-native';
 import { ordersApi } from '@/api/orders';
+import { notificationsApi } from '@/api/notifications';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +49,8 @@ const ReceiptScreen = () => {
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [previousDeliveryStatus, setPreviousDeliveryStatus] = useState<'pending' | 'delivered' | 'cancelled'>('pending');
+  const monitoringDeliveryRef = useRef(false);
 
   const getStatusInfo = (status: any, deliveryStatus: any = 'pending') => {
     // Normalizar el status: 'paid' y 'completed' son lo mismo
@@ -198,9 +201,9 @@ const ReceiptScreen = () => {
     // Configurar polling para cambios en delivery_status
     let isMounted = true;
     const deliveryCheckInterval = setInterval(async () => {
-      if (!isMounted || monitoringDelivery) return;
-      
-      setMonitoringDelivery(true);
+      if (!isMounted || monitoringDeliveryRef.current) return;
+
+      monitoringDeliveryRef.current = true;
       
       try {
         const { data: updatedOrder } = await supabase
@@ -262,9 +265,7 @@ const ReceiptScreen = () => {
       } catch (error) {
         console.error('Error monitoring delivery status:', error);
       } finally {
-        if (isMounted) {
-          setMonitoringDelivery(false);
-        }
+        monitoringDeliveryRef.current = false;
       }
     }, 5000); // Verificar cada 5 segundos
 
@@ -329,14 +330,18 @@ const ReceiptScreen = () => {
         gymName = gym?.name;
       }
 
+      const normalizedDeliveryStatus = (orderData.delivery_status === 'pending' || orderData.delivery_status === 'delivered' || orderData.delivery_status === 'cancelled'
+        ? orderData.delivery_status
+        : 'pending') as 'pending' | 'delivered' | 'cancelled';
+
+      setPreviousDeliveryStatus(normalizedDeliveryStatus);
+
       setOrder({
         ...orderData,
         status: (orderData.status === 'completed' || orderData.status === 'paid' || orderData.status === 'pending' || orderData.status === 'failed' 
           ? (orderData.status === 'paid' ? 'completed' : orderData.status)
           : 'pending') as 'pending' | 'completed' | 'paid' | 'failed',
-        delivery_status: (orderData.delivery_status === 'pending' || orderData.delivery_status === 'delivered' || orderData.delivery_status === 'cancelled'
-          ? orderData.delivery_status
-          : 'pending') as 'pending' | 'delivered' | 'cancelled',
+        delivery_status: normalizedDeliveryStatus,
         items: itemsWithNames,
         gym_name: gymName,
       });

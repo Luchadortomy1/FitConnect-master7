@@ -1,6 +1,61 @@
 import { Supplement, Purchase } from '@/types';
 import { supabase } from './auth';
 
+type ProductCategory = Supplement['category'];
+type ProductRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  image_url?: string | null;
+  category?: ProductCategory | null;
+  stock?: number | null;
+  gym_id?: string | null;
+  ingredients?: string[] | null;
+  serving_size?: string | null;
+  servings_per_container?: number | null;
+};
+
+const getGymNamesMap = async (gymIds: string[]): Promise<Record<string, string>> => {
+  if (!gymIds.length) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from('gyms')
+    .select('id, name')
+    .in('id', gymIds);
+
+  if (error || !data) {
+    console.warn('Error fetching gyms for products:', error);
+    return {};
+  }
+
+  return data.reduce<Record<string, string>>((acc, gym) => {
+    if (gym?.id && gym?.name) {
+      acc[gym.id] = gym.name;
+    }
+    return acc;
+  }, {});
+};
+
+const mapProductToSupplement = (product: ProductRow, gymNameById: Record<string, string> = {}): Supplement => ({
+  id: product.id,
+  name: product.name,
+  description: product.description || '',
+  price: product.price,
+  image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
+  category: product.category || 'other',
+  rating: 4.5,
+  reviews: 0,
+  ingredients: product.ingredients || [],
+  servingSize: product.serving_size || '',
+  servingsPerContainer: product.servings_per_container || 0,
+  stock: typeof product.stock === 'number' ? product.stock : 0,
+  gym_id: product.gym_id || undefined,
+  gym_name: product.gym_id ? gymNameById[product.gym_id] : undefined,
+});
+
 // Mock supplement data
 const mockSupplements: Supplement[] = [
   {
@@ -110,21 +165,8 @@ export const storeApi = {
         return mockSupplements; // Fallback a datos mock si no hay productos
       }
 
-      return data.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
-        category: (product.category || 'other') as any,
-        rating: 4.5, // TODO: obtener de la BD si está disponible
-        reviews: 0,
-        ingredients: [],
-        servingSize: '',
-        servingsPerContainer: 0,
-        stock: typeof product.stock === 'number' ? product.stock : 0,
-        gym_id: product.gym_id,
-      }));
+      const gymNameById = await getGymNamesMap([gymId]);
+      return (data as ProductRow[]).map(product => mapProductToSupplement(product, gymNameById));
     } catch (error) {
       console.error('Error getting gym supplements:', error);
       return mockSupplements;
@@ -154,21 +196,14 @@ export const storeApi = {
         return mockSupplements;
       }
 
-      return data.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
-        category: (product.category || 'other') as any,
-        rating: 4.5,
-        reviews: 0,
-        ingredients: [],
-        servingSize: '',
-        servingsPerContainer: 0,
-        stock: typeof product.stock === 'number' ? product.stock : 0,
-        gym_id: product.gym_id,
-      }));
+      const uniqueGymIds = Array.from(new Set(
+        (data as ProductRow[])
+          .map(product => product.gym_id)
+          .filter((id): id is string => Boolean(id))
+      ));
+      const gymNameById = await getGymNamesMap(uniqueGymIds);
+
+      return (data as ProductRow[]).map(product => mapProductToSupplement(product, gymNameById));
     } catch (error) {
       console.error('Error getting supplements from multiple gyms:', error);
       return mockSupplements;
@@ -190,21 +225,14 @@ export const storeApi = {
         return mockSupplements;
       }
 
-      return data.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        image: product.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
-        category: (product.category || 'other') as any,
-        rating: 4.5,
-        reviews: 0,
-        ingredients: [],
-        servingSize: '',
-        servingsPerContainer: 0,
-        stock: typeof product.stock === 'number' ? product.stock : 0,
-        gym_id: product.gym_id,
-      }));
+      const uniqueGymIds = Array.from(new Set(
+        (data as ProductRow[])
+          .map(product => product.gym_id)
+          .filter((id): id is string => Boolean(id))
+      ));
+      const gymNameById = await getGymNamesMap(uniqueGymIds);
+
+      return (data as ProductRow[]).map(product => mapProductToSupplement(product, gymNameById));
     } catch (error) {
       console.error('Error getting supplements:', error);
       return mockSupplements;
@@ -224,21 +252,9 @@ export const storeApi = {
         return mockSupplements.find(supplement => supplement.id === id) || null;
       }
 
-      return {
-        id: data.id,
-        name: data.name,
-        description: data.description || '',
-        price: data.price,
-        image: data.image_url || 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=300&h=300&fit=crop',
-        category: (data.category || 'other') as any,
-        rating: 4.5,
-        reviews: 0,
-        ingredients: data.ingredients || [],
-        servingSize: data.serving_size || '',
-        servingsPerContainer: data.servings_per_container || 0,
-        stock: typeof data.stock === 'number' ? data.stock : 0,
-        gym_id: data.gym_id,
-      };
+      const gymId = (data as ProductRow).gym_id;
+      const gymNameById = await getGymNamesMap(gymId ? [gymId] : []);
+      return mapProductToSupplement(data as ProductRow, gymNameById);
     } catch (error) {
       console.error('Error getting supplement:', error);
       return mockSupplements.find(supplement => supplement.id === id) || null;

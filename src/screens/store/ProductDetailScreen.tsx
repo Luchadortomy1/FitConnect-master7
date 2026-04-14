@@ -32,6 +32,13 @@ const ProductDetailScreen = () => {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
 
+  const productDescription = [
+    product?.description || '',
+    product?.gym_name ? `Gym: ${product.gym_name}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
   useEffect(() => {
     loadProductDetails();
     setQuantity(1); // Reset quantity when entering/changing product
@@ -159,7 +166,7 @@ const ProductDetailScreen = () => {
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Descripción</Text>
           <Text style={[styles.description, { color: colors.textSecondary }]}>
-            {product.description}
+            {productDescription}
           </Text>
         </View>
 

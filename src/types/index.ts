@@ -81,6 +81,7 @@ export interface Supplement {
   servingsPerContainer: number;
   stock?: number;
   gym_id?: string;
+  gym_name?: string;
 }
 
 export interface CartItem {
@@ -135,7 +136,7 @@ export interface Notification {
   message: string;
   date: string;
   read: boolean;
-  type: 'workout' | 'supplement' | 'general' | 'achievement' | 'subscription';
+  type: 'workout' | 'supplement' | 'general' | 'achievement' | 'subscription' | 'order';
   data?: Record<string, any>;
 }
 

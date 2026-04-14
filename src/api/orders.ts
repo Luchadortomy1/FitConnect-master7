@@ -157,10 +157,10 @@ export const ordersApi = {
         return false;
       }
 
-      // Actualizar el estado de la orden a completed
+      // Actualizar el estado de la orden a paid (valor válido del enum order_status)
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ status: 'completed' })
+        .update({ status: 'paid' })
         .eq('id', orderId);
 
       if (updateError) {
@@ -176,10 +176,10 @@ export const ordersApi = {
         }));
 
         const stockUpdateSuccess = await storeApi.updateMultipleProductsStock(stockUpdates);
-        
+
         if (!stockUpdateSuccess) {
           console.warn('Warning: Some product stocks could not be updated for order', orderId);
-          // No retornamos false aquí porque la orden ya fue pagada
+          return false;
         }
       }
 
