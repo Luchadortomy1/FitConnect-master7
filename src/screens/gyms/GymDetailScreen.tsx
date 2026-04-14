@@ -20,6 +20,7 @@ import { useApp } from '@/contexts/AppContext';
 import { gymsApi, userSubscriptionsApi } from '@/api';
 import { StripePaymentSheet } from '@/components/StripePaymentSheet';
 import { Gym } from '@/types';
+import { UserSubscription } from '@/api/userSubscriptions';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -37,9 +38,11 @@ const GymDetailScreen = () => {
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
-  const [userSubscriptions, setUserSubscriptions] = useState<any[]>([]);
+  const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
   const [isUserSubscribed, setIsUserSubscribed] = useState(false);
   const [isUserSubscriptionExpired, setIsUserSubscriptionExpired] = useState(false);
+  const [isRecurringBillingEnabled, setIsRecurringBillingEnabled] = useState(false);
+  const [isCancellationScheduled, setIsCancellationScheduled] = useState(false);
   const [isRenewalMode, setIsRenewalMode] = useState(false);
 
   useEffect(() => {
@@ -84,28 +87,50 @@ const GymDetailScreen = () => {
   const loadUserSubscriptions = async () => {
     try {
       const subscriptions = await userSubscriptionsApi.getUserAllSubscriptions();
-      setUserSubscriptions(subscriptions);
       
-      // Verificar si el usuario está suscrito a este gym (activo o expirado)
-      const gymSubscription = subscriptions.find(sub => sub.gym_id === initialGym.id);
-      const isSubscribed = !!gymSubscription;
-      const isExpired = gymSubscription?.status === 'expired';
-      
+      const gymSubscriptions = subscriptions
+        .filter(sub => sub.gym_id === initialGym.id)
+        .sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime());
+
+      const now = Date.now();
+      const activeGymSubscription = gymSubscriptions.find(
+        sub => sub.status === 'active' && new Date(sub.end_date).getTime() > now
+      );
+      const expiredGymSubscription = gymSubscriptions.find(sub => sub.status === 'expired');
+      const gymSubscription = activeGymSubscription || expiredGymSubscription || null;
+
+      const isSubscribed = Boolean(activeGymSubscription);
+      const isExpired = Boolean(!activeGymSubscription && expiredGymSubscription);
+
+      setCurrentSubscription(gymSubscription);
       setIsUserSubscribed(isSubscribed);
       setIsUserSubscriptionExpired(isExpired);
+      setIsRecurringBillingEnabled(Boolean(activeGymSubscription?.auto_renew));
+      setIsCancellationScheduled(Boolean(activeGymSubscription?.cancel_at_period_end));
     } catch (error) {
       console.error('Error loading subscriptions:', error);
     }
   };
 
+  const formatSubscriptionDate = (dateIso?: string) => {
+    if (!dateIso) return 'fecha no disponible';
+    return new Date(dateIso).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
   const handleCancelSubscription = () => {
+    if (!currentSubscription) return;
+
     Alert.alert(
-      'Cancelar Suscripción',
-      '¿Estás seguro de que deseas cancelar tu suscripción a este gimnasio?',
+      'Cancelar al final del periodo',
+      `Tu suscripción seguirá activa hasta ${formatSubscriptionDate(currentSubscription.end_date)} y no se renovará automáticamente.`,
       [
         { text: 'No', style: 'cancel' },
         {
-          text: 'Sí, Cancelar',
+          text: 'Sí, programar cancelación',
           style: 'destructive',
           onPress: () => { void handleConfirmCancel(); },
         },
@@ -116,24 +141,18 @@ const GymDetailScreen = () => {
   const handleConfirmCancel = async () => {
     try {
       setIsSubscribing(true);
-      const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
-      if (subscription) {
-        if (isUserSubscriptionExpired) {
-          // Si está expirada, renovar
-          const renewed = await userSubscriptionsApi.renewSubscription(subscription.id);
-          if (renewed) {
-            Alert.alert('Éxito', 'Tu suscripción ha sido renovada');
-            setIsUserSubscriptionExpired(false);
-            await loadUserSubscriptions();
-          } else {
-            Alert.alert('Error', 'No se pudo renovar la suscripción');
-          }
-        } else {
-          // Si está activa, cancelar
-          await userSubscriptionsApi.cancelSubscription(subscription.id);
-          Alert.alert('Éxito', 'Tu suscripción ha sido cancelada');
-          setIsUserSubscribed(false);
+      if (currentSubscription) {
+        const scheduled = await userSubscriptionsApi.cancelSubscription(currentSubscription.id);
+        if (scheduled) {
+          Alert.alert(
+            'Cancelación programada',
+            `La suscripción queda activa hasta ${formatSubscriptionDate(currentSubscription.end_date)}. Después se desactivará.`
+          );
+          setIsCancellationScheduled(true);
+          setIsRecurringBillingEnabled(false);
           await loadUserSubscriptions();
+        } else {
+          Alert.alert('Error', 'No se pudo programar la cancelación');
         }
       }
     } catch (error) {
@@ -145,10 +164,8 @@ const GymDetailScreen = () => {
   };
 
   const handleRenewalWithPayment = async () => {
-    // Obtener el plan actual de la suscripción expirada
-    const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+    const subscription = currentSubscription;
     if (subscription && subscriptionPlans.length > 0) {
-      // Usar el plan actual para la renovación
       const currentPlan = subscriptionPlans.find(p => p.id === subscription.plan_id) || subscriptionPlans[0];
       setSelectedPlan(currentPlan);
       setIsRenewalMode(true);
@@ -161,11 +178,17 @@ const GymDetailScreen = () => {
   const renewWithPayment = async (paymentIntentId: string) => {
     try {
       setIsSubscribing(true);
-      const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+      const subscription = currentSubscription;
       if (subscription) {
+        const wasExpired = isUserSubscriptionExpired;
         const result = await userSubscriptionsApi.renewSubscription(subscription.id, paymentIntentId);
         if (result) {
-          Alert.alert('Éxito', '¡Tu suscripción ha sido renovada correctamente!');
+          Alert.alert(
+            'Éxito',
+            wasExpired
+              ? '¡Tu suscripción ha sido renovada correctamente!'
+              : 'Se agregó 1 mes adicional a tu suscripción activa.'
+          );
           await addNotification({
             id: `renewal-success-${subscription.id}`,
             title: '✅ Suscripción renovada',
@@ -176,6 +199,9 @@ const GymDetailScreen = () => {
             data: { gym_id: initialGym.id, subscription_id: subscription.id },
           });
           setIsUserSubscriptionExpired(false);
+          if (wasExpired) {
+            setIsUserSubscribed(true);
+          }
           await loadUserSubscriptions();
         } else {
           Alert.alert('Error', 'No se pudo renovar la suscripción');
@@ -192,13 +218,18 @@ const GymDetailScreen = () => {
   const handleCancelExpiredSubscription = async () => {
     try {
       setIsSubscribing(true);
-      const subscription = userSubscriptions.find(sub => sub.gym_id === initialGym.id);
+      const subscription = currentSubscription;
       if (subscription) {
-        await userSubscriptionsApi.cancelSubscription(subscription.id);
-        Alert.alert('Éxito', 'Tu suscripción ha sido cancelada');
-        setIsUserSubscribed(false);
-        setIsUserSubscriptionExpired(false);
-        await loadUserSubscriptions();
+        const cancelled = await userSubscriptionsApi.cancelSubscription(subscription.id, { immediate: true });
+        if (cancelled) {
+          Alert.alert('Éxito', 'Tu suscripción expirada fue cancelada');
+          setIsUserSubscribed(false);
+          setIsUserSubscriptionExpired(false);
+          setCurrentSubscription(null);
+          await loadUserSubscriptions();
+        } else {
+          Alert.alert('Error', 'No se pudo cancelar la suscripción expirada');
+        }
       }
     } catch (error) {
       console.error('Error:', error);
@@ -208,26 +239,71 @@ const GymDetailScreen = () => {
     }
   };
 
+  const handleToggleRecurringBilling = async () => {
+    if (!currentSubscription) return;
+
+    try {
+      setIsSubscribing(true);
+      const nextEnabled = !isRecurringBillingEnabled;
+      const updated = await userSubscriptionsApi.setRecurringBilling(currentSubscription.id, nextEnabled);
+
+      if (updated) {
+        setIsRecurringBillingEnabled(nextEnabled);
+        if (nextEnabled) {
+          setIsCancellationScheduled(false);
+        }
+
+        Alert.alert(
+          'Facturación periódica',
+          nextEnabled
+            ? 'La facturación periódica quedó activada para esta suscripción.'
+            : 'La facturación periódica quedó desactivada.'
+        );
+
+        await loadUserSubscriptions();
+      } else {
+        Alert.alert('No disponible', 'No se pudo actualizar la facturación periódica. Verifica la migración de suscripciones.');
+      }
+    } catch (error) {
+      console.error('Error updating recurring billing:', error);
+      Alert.alert('Error', 'No se pudo cambiar la facturación periódica.');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
   const getSubscriptionButtonText = (): string => {
     if (isSubscribing) {
-      if (isUserSubscriptionExpired) return 'Renovando...';
+      if (isUserSubscriptionExpired) return 'Procesando...';
       if (isUserSubscribed) return 'Cancelando...';
       return 'Suscribiendo...';
     }
+
     if (isUserSubscriptionExpired) {
       return 'Renovar';
     }
-    return isUserSubscribed ? 'Cancelar' : 'Suscribirse';
+
+    if (!isUserSubscribed) {
+      return 'Suscribirse';
+    }
+
+    if (isCancellationScheduled) {
+      return 'Cancelación programada';
+    }
+
+    return 'Cancelar al finalizar';
   };
 
   const getSubscriptionButtonColor = (): string => {
     if (isUserSubscriptionExpired) return colors.warning;
+    if (isUserSubscribed && isCancellationScheduled) return colors.warning;
     if (isUserSubscribed) return colors.error;
     return colors.success;
   };
 
   const getSubscriptionButtonIcon = (): string => {
     if (isUserSubscriptionExpired) return 'refresh-outline';
+    if (isUserSubscribed && isCancellationScheduled) return 'time-outline';
     if (isUserSubscribed) return 'trash-outline';
     return 'checkmark-circle';
   };
@@ -296,6 +372,7 @@ const GymDetailScreen = () => {
           type: 'subscription',
           data: { gym_id: initialGym.id },
         });
+        await loadUserSubscriptions();
       } else {
         Alert.alert('Error', 'No se pudo completar la suscripción');
       }
@@ -502,16 +579,53 @@ const GymDetailScreen = () => {
               </View>
             ) : (
               // Si está activa o sin suscripción: mostrar un botón
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: getSubscriptionButtonColor(), marginTop: 10 }]}
-                onPress={isUserSubscribed ? handleCancelSubscription : handleSubscribe}
-                disabled={isSubscribing}
-              >
-                <Ionicons name={getSubscriptionButtonIcon()} size={20} color="white" />
-                <Text style={styles.primaryButtonText}>
-                  {getSubscriptionButtonText()}
-                </Text>
-              </TouchableOpacity>
+              <View style={{ marginTop: 10, gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.primaryButton, { backgroundColor: getSubscriptionButtonColor() }]}
+                  onPress={isUserSubscribed ? handleCancelSubscription : handleSubscribe}
+                  disabled={isSubscribing || (isUserSubscribed && isCancellationScheduled)}
+                >
+                  <Ionicons name={getSubscriptionButtonIcon()} size={20} color="white" />
+                  <Text style={styles.primaryButtonText}>
+                    {getSubscriptionButtonText()}
+                  </Text>
+                </TouchableOpacity>
+
+                {isUserSubscribed && currentSubscription && (
+                  <>
+                    <View style={[styles.subscriptionInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      <Text style={[styles.subscriptionInfoText, { color: colors.textSecondary }]}>
+                        Vence el {formatSubscriptionDate(currentSubscription.end_date)}
+                      </Text>
+                      {isCancellationScheduled && (
+                        <Text style={[styles.subscriptionInfoText, { color: colors.warning }]}>
+                          Cancelación programada al finalizar el periodo
+                        </Text>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.primaryButton, { backgroundColor: colors.warning }]}
+                      onPress={handleRenewalWithPayment}
+                      disabled={isSubscribing}
+                    >
+                      <Ionicons name="add-circle-outline" size={20} color="white" />
+                      <Text style={styles.primaryButtonText}>Pagar 1 mes extra</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.primaryButton, { backgroundColor: isRecurringBillingEnabled ? colors.success : colors.textSecondary }]}
+                      onPress={handleToggleRecurringBilling}
+                      disabled={isSubscribing}
+                    >
+                      <Ionicons name={isRecurringBillingEnabled ? 'repeat' : 'repeat-outline'} size={20} color="white" />
+                      <Text style={styles.primaryButtonText}>
+                        Facturación periódica: {isRecurringBillingEnabled ? 'Activada' : 'Desactivada'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
             )}
             
             <View style={styles.secondaryButtons}>
@@ -760,6 +874,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
+  },
+  subscriptionInfoBox: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  subscriptionInfoText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   secondaryButtons: {
     flexDirection: 'row',

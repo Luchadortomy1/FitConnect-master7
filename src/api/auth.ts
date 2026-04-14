@@ -182,6 +182,16 @@ export const signup = async (email: string, password: string, name: string) => {
       return { success: false, error: friendly };
     }
 
+    // Supabase can return a user without identities when email already exists
+    // and email confirmations are enabled, instead of returning an error.
+    const identities = (data.user as any)?.identities;
+    if (!data.session && Array.isArray(identities) && identities.length === 0) {
+      return {
+        success: false,
+        error: 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.',
+      };
+    }
+
     if (data.user) {
       // Crear o actualizar perfil del usuario (upsert) si hay sesión; si no, lo crearemos en el primer login
       let insertedProfile = null;

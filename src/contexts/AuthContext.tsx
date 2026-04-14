@@ -110,19 +110,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       processedDeepLinks.current.add(url);
 
       try {
+        const lowerUrl = url.toLowerCase();
         const params = parseUrlParams(url);
         let type = params.get('type');
 
         // Fallback detection if type is missing
         if (!type) {
-          if (url.includes('reset-password')) type = 'recovery';
-          if (url.includes('email-confirm')) type = 'signup';
+          if (lowerUrl.includes('reset-password') || lowerUrl.includes('recovery')) type = 'recovery';
+          if (lowerUrl.includes('email-confirm') || lowerUrl.includes('signup') || lowerUrl.includes('confirm')) type = 'signup';
         }
+
+        const isRecoveryLike = type === 'recovery' || lowerUrl.includes('reset-password') || lowerUrl.includes('recovery');
+        const isLikelySignupCallback = !isRecoveryLike && (
+          type === 'signup'
+          || lowerUrl.includes('email-confirm')
+          || lowerUrl.includes('auth/callback')
+          || lowerUrl.includes('confirm')
+          || params.get('verified') === 'true'
+        );
 
         console.log('Deep link received', { url, type, hasAccessToken: params.has('access_token'), hasRefreshToken: params.has('refresh_token') });
 
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
+        const authCode = params.get('code');
+        const tokenHash = params.get('token_hash') || params.get('token');
+        const hasAuthPayload = Boolean(accessToken || refreshToken || authCode || tokenHash);
+        const isPlainAppReturn = lowerUrl.startsWith('fitconnect://') && !hasAuthPayload;
         let data: any = null;
 
         if (accessToken && refreshToken) {
@@ -140,9 +154,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (helperError) console.warn('Deep link session helper error:', helperError.message);
         }
 
+        // Fallback: PKCE code flow
+        if (!data?.session && authCode && typeof (supabase.auth as any).exchangeCodeForSession === 'function') {
+          const exchange = await (supabase.auth as any).exchangeCodeForSession(authCode);
+          if (exchange?.data?.session) {
+            data = exchange.data;
+          } else if (exchange?.error) {
+            console.warn('Deep link exchangeCodeForSession error:', exchange.error.message);
+          }
+        }
+
         // Fallback: verifyOtp with token_hash if still no session
         if (!data?.session) {
-          const tokenHash = params.get('token');
           if (tokenHash && (type === 'recovery' || type === 'signup')) {
             const verifyType = type === 'recovery' ? 'recovery' : 'signup';
             const verify = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: verifyType });
@@ -155,6 +178,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         if (!data?.session) {
+          if (isLikelySignupCallback || isPlainAppReturn) {
+            navigateWhenReady(() => navigationHelper.navigate('Login'));
+            return;
+          }
+
           await supabase.auth.signOut();
           await SecureStore.deleteItemAsync('supabase.auth.token');
           processedDeepLinks.current.delete(url);
@@ -177,10 +205,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           );
           navigateWhenReady(() => navigationHelper.navigate('PasswordReset'));
         } else if (type === 'signup') {
-          Alert.alert(
-            'Correo verificado',
-            'Tu correo fue confirmado. Ya puedes entrar a FitConnect.'
-          );
+          // Volver a la app en silencio después de verificar correo.
           navigateWhenReady(() => navigationHelper.navigate('Main'));
         } else {
           // If we got a session but no type, still move past login
@@ -189,6 +214,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.warn('Error handling auth deep link:', error);
         processedDeepLinks.current.delete(url);
+
+        const lowerUrl = url.toLowerCase();
+        const isLikelySignupCallback =
+          lowerUrl.includes('email-confirm')
+          || lowerUrl.includes('auth/callback')
+          || lowerUrl.includes('confirm')
+          || lowerUrl.includes('signup');
+
+        const isPlainAppReturn = lowerUrl.startsWith('fitconnect://');
+
+        if (isLikelySignupCallback || isPlainAppReturn) {
+          navigateWhenReady(() => navigationHelper.navigate('Login'));
+          return;
+        }
+
         Alert.alert('Enlace no válido', 'No se pudo procesar el enlace. Intenta de nuevo.');
       }
     };

@@ -13,7 +13,38 @@ export interface UserSubscription {
   gym_name?: string;
   plan_name?: string;
   plan_price?: number;
+  auto_renew?: boolean;
+  cancel_at_period_end?: boolean;
+  cancellation_requested_at?: string | null;
 }
+
+const mapSubscription = (subscription: any): UserSubscription => {
+  const plan = subscription.subscription_plans;
+  const gym = plan?.gyms;
+
+  return {
+    id: subscription.id,
+    user_id: subscription.user_id,
+    plan_id: subscription.plan_id,
+    start_date: subscription.start_date,
+    end_date: subscription.end_date,
+    status: subscription.status,
+    stripe_payment_id: subscription.stripe_payment_id,
+    created_at: subscription.created_at,
+    gym_id: gym?.id,
+    gym_name: gym?.name,
+    plan_name: plan?.name,
+    plan_price: plan?.price,
+    auto_renew: Boolean(subscription.auto_renew),
+    cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+    cancellation_requested_at: subscription.cancellation_requested_at || null,
+  };
+};
+
+const isStillActiveByDate = (endDateIso?: string): boolean => {
+  if (!endDateIso) return false;
+  return new Date(endDateIso).getTime() > Date.now();
+};
 
 export const userSubscriptionsApi = {
   /**
@@ -30,14 +61,7 @@ export const userSubscriptionsApi = {
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select(`
-          id,
-          user_id,
-          plan_id,
-          start_date,
-          end_date,
-          status,
-          stripe_payment_id,
-          created_at,
+          *,
           subscription_plans(
             id,
             gym_id,
@@ -63,24 +87,7 @@ export const userSubscriptionsApi = {
         return null;
       }
 
-      // Mapear respuesta a interfaz UserSubscription
-      const plan = data.subscription_plans as any;
-      const gym = plan?.gyms;
-
-      return {
-        id: data.id,
-        user_id: data.user_id,
-        plan_id: data.plan_id,
-        start_date: data.start_date,
-        end_date: data.end_date,
-        status: data.status,
-        stripe_payment_id: data.stripe_payment_id,
-        created_at: data.created_at,
-        gym_id: gym?.id,
-        gym_name: gym?.name,
-        plan_name: plan?.name,
-        plan_price: plan?.price,
-      };
+      return mapSubscription(data);
     } catch (error) {
       console.error('Error getting user subscription:', error);
       return null;
@@ -136,7 +143,7 @@ export const userSubscriptionsApi = {
         throw error;
       }
 
-      const gym = planData.gyms as any;
+      const gym = planData.gyms;
       return {
         id: data.id,
         user_id: data.user_id,
@@ -150,6 +157,9 @@ export const userSubscriptionsApi = {
         gym_name: gym?.name,
         plan_name: planData.name,
         plan_price: planData.price,
+        auto_renew: false,
+        cancel_at_period_end: false,
+        cancellation_requested_at: null,
       };
     } catch (error) {
       console.error('Error subscribing to gym:', error);
@@ -179,7 +189,7 @@ export const userSubscriptionsApi = {
         throw new Error('Subscription not found');
       }
 
-      const plan = subscription.subscription_plans as any;
+      const plan = subscription.subscription_plans;
       const currentEndDate = new Date(subscription.end_date);
       const newEndDate = new Date(currentEndDate.getTime() + (plan.duration_days * 24 * 60 * 60 * 1000));
 
@@ -204,6 +214,15 @@ export const userSubscriptionsApi = {
         throw error;
       }
 
+      // Si existiera el esquema extendido, al renovar removemos la cancelación programada.
+      await supabase
+        .from('user_subscriptions')
+        .update({
+          cancel_at_period_end: false,
+          cancellation_requested_at: null,
+        })
+        .eq('id', subscriptionId);
+
       const gym = plan?.gyms;
       return {
         id: data.id,
@@ -218,6 +237,9 @@ export const userSubscriptionsApi = {
         gym_name: gym?.name,
         plan_name: plan?.name,
         plan_price: plan?.price,
+        auto_renew: Boolean(data.auto_renew),
+        cancel_at_period_end: false,
+        cancellation_requested_at: null,
       };
     } catch (error) {
       console.error('Error renewing subscription:', error);
@@ -236,6 +258,44 @@ export const userSubscriptionsApi = {
         return [];
       }
 
+      // Procesar renovación automática para suscripciones con facturación periódica activa.
+      // Si el esquema extendido no existe aún, este bloque se omite sin romper el flujo.
+      const nowIso = new Date().toISOString();
+      const { data: pendingAutoRenewals, error: autoRenewError } = await supabase
+        .from('user_subscriptions')
+        .select('id, end_date, subscription_plans(duration_days)')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active')
+        .eq('auto_renew', true)
+        .lt('end_date', nowIso);
+
+      if (!autoRenewError && pendingAutoRenewals && pendingAutoRenewals.length > 0) {
+        for (const sub of pendingAutoRenewals as any[]) {
+          const durationDays = sub?.subscription_plans?.duration_days;
+          if (!durationDays || !sub?.end_date) continue;
+
+          let nextEndDate = new Date(sub.end_date);
+          const nowTime = Date.now();
+
+          // Cubre escenarios donde el usuario estuvo inactivo varios periodos.
+          while (nextEndDate.getTime() <= nowTime) {
+            nextEndDate = new Date(nextEndDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+          }
+
+          await supabase
+            .from('user_subscriptions')
+            .update({
+              end_date: nextEndDate.toISOString(),
+              status: 'active',
+              cancel_at_period_end: false,
+              cancellation_requested_at: null,
+            })
+            .eq('id', sub.id);
+        }
+      } else if (autoRenewError) {
+        console.warn('Auto-renew check skipped:', autoRenewError.message);
+      }
+
       // Primero, marcar como expiradas las que pasaron su fecha
       const now = new Date().toISOString();
       await supabase
@@ -250,14 +310,7 @@ export const userSubscriptionsApi = {
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select(`
-          id,
-          user_id,
-          plan_id,
-          start_date,
-          end_date,
-          status,
-          stripe_payment_id,
-          created_at,
+          *,
           subscription_plans(
             id,
             gym_id,
@@ -281,26 +334,7 @@ export const userSubscriptionsApi = {
         return [];
       }
 
-      // Mapear respuestas a interfaz UserSubscription
-      return data.map((subscription: any) => {
-        const plan = subscription.subscription_plans as any;
-        const gym = plan?.gyms;
-
-        return {
-          id: subscription.id,
-          user_id: subscription.user_id,
-          plan_id: subscription.plan_id,
-          start_date: subscription.start_date,
-          end_date: subscription.end_date,
-          status: subscription.status,
-          stripe_payment_id: subscription.stripe_payment_id,
-          created_at: subscription.created_at,
-          gym_id: gym?.id,
-          gym_name: gym?.name,
-          plan_name: plan?.name,
-          plan_price: plan?.price,
-        };
-      });
+      return data.map((subscription: any) => mapSubscription(subscription));
     } catch (error) {
       console.error('Error getting user subscriptions:', error);
       return [];
@@ -313,8 +347,8 @@ export const userSubscriptionsApi = {
   async getUserAllActiveSubscriptions(): Promise<UserSubscription[]> {
     try {
       const subscriptions = await this.getUserAllSubscriptions();
-      // Filtrar solo las activas
-      return subscriptions.filter(sub => sub.status === 'active');
+      // Filtrar solo las activas y no vencidas por fecha.
+      return subscriptions.filter(sub => sub.status === 'active' && isStillActiveByDate(sub.end_date));
     } catch (error) {
       console.error('Error getting active subscriptions:', error);
       return [];
@@ -322,10 +356,87 @@ export const userSubscriptionsApi = {
   },
 
   /**
-   * Cancelar suscripción del usuario
+   * Activar o desactivar facturación periódica (renovación automática).
+   * Requiere columnas opcionales en BD: auto_renew, cancel_at_period_end, cancellation_requested_at.
    */
-  async cancelSubscription(subscriptionId: string): Promise<boolean> {
+  async setRecurringBilling(subscriptionId: string, enabled: boolean): Promise<boolean> {
     try {
+      const payload: any = { auto_renew: enabled };
+
+      if (enabled) {
+        payload.cancel_at_period_end = false;
+        payload.cancellation_requested_at = null;
+      }
+
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .update(payload)
+        .eq('id', subscriptionId);
+
+      if (error) {
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating recurring billing:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Cancelar suscripción del usuario.
+   * Por defecto cancela al finalizar el periodo actual para no perder días ya pagados.
+   */
+  async cancelSubscription(subscriptionId: string, options?: { immediate?: boolean }): Promise<boolean> {
+    try {
+      const immediate = Boolean(options?.immediate);
+
+      if (immediate) {
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .update({ status: 'cancelled' })
+          .eq('id', subscriptionId);
+
+        if (error) {
+          throw error;
+        }
+
+        return true;
+      }
+
+      const { data: subscription, error: subscriptionError } = await supabase
+        .from('user_subscriptions')
+        .select('id, status, end_date')
+        .eq('id', subscriptionId)
+        .single();
+
+      if (subscriptionError || !subscription) {
+        throw subscriptionError || new Error('Subscription not found');
+      }
+
+      const shouldKeepActive =
+        subscription.status === 'active' && isStillActiveByDate(subscription.end_date);
+
+      if (shouldKeepActive) {
+        const { error: scheduleError } = await supabase
+          .from('user_subscriptions')
+          .update({
+            auto_renew: false,
+            cancel_at_period_end: true,
+            cancellation_requested_at: new Date().toISOString(),
+          })
+          .eq('id', subscriptionId);
+
+        // Si la BD todavía no tiene columnas de cancelación programada,
+        // no forzamos status=cancelled para conservar acceso hasta vencimiento.
+        if (scheduleError) {
+          console.warn('Scheduled cancellation fields unavailable, keeping active subscription as-is:', scheduleError.message);
+        }
+
+        return true;
+      }
+
       const { error } = await supabase
         .from('user_subscriptions')
         .update({ status: 'cancelled' })

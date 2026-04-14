@@ -53,6 +53,7 @@ const WorkoutsScreen = () => {
   const { activeTrainingSession } = useApp();
   const [routines, setRoutines] = useState<WeeklyRoutine[]>([]);
   const [activeRoutine, setActiveRoutine] = useState<WeeklyRoutine | null>(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaysSessions, setTodaysSessions] = useState<any[]>([]);
@@ -144,6 +145,18 @@ const WorkoutsScreen = () => {
 
   const loadData = async () => {
     try {
+      const activeSubscriptions = await userSubscriptionsApi.getUserAllActiveSubscriptions();
+
+      if (activeSubscriptions.length === 0) {
+        setHasActiveSubscription(false);
+        setRoutines([]);
+        setActiveRoutine(null);
+        setTodaysSessions([]);
+        return;
+      }
+
+      setHasActiveSubscription(true);
+
       const [routinesData, activeRoutineData] = await Promise.all([
         routinesApi.getRoutines(),
         routinesApi.getActiveRoutine(),
@@ -347,6 +360,99 @@ const WorkoutsScreen = () => {
     return 'Libre';
   };
 
+  const renderTodaySection = () => {
+    if (!hasActiveSubscription) {
+      return (
+        <Card style={styles.emptyState}>
+          <Ionicons name="lock-closed-outline" size={48} color={colors.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin suscripción activa</Text>
+          <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+            Para ver o crear rutinas necesitas una suscripción activa a un gimnasio.
+          </Text>
+          <Button title="Ver gimnasios" onPress={() => navigation.navigate('Gyms' as never)} style={styles.createButton} />
+        </Card>
+      );
+    }
+
+    if (!activeRoutine) {
+      return (
+        <Card style={styles.emptyState}>
+          <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Crea tu primera rutina</Text>
+          <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>Organiza tus entrenos semanales y sigue el plan del mock</Text>
+          <Button title="Crear rutina" onPress={() => { void handleCreateRoutinePress(); }} style={styles.createButton} />
+        </Card>
+      );
+    }
+
+    return (
+      <Card style={[styles.heroCard, { backgroundColor: colors.primary + '08' }]}> 
+        <View style={styles.heroHeader}>
+          <View style={styles.heroBadge}>
+            <Ionicons name="flame" size={16} color={colors.primary} />
+            <Text style={[styles.heroBadgeText, { color: colors.primary }]}>Rutina activa</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.heroTitle, { color: colors.text }]}>{activeRoutine.name}</Text>
+        <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
+          {activeRoutine.description || 'Entrena con constancia esta semana'}
+        </Text>
+
+        <View style={styles.heroRow}>
+          <View style={styles.heroStat}>
+            <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+            <Text style={[styles.heroStatText, { color: colors.textSecondary }]}>7 días</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Ionicons name="barbell-outline" size={18} color={colors.textSecondary} />
+            <Text style={[styles.heroStatText, { color: colors.textSecondary }]}>
+              {Object.values(activeRoutine.weeklyPlan).reduce((t, d) => t + (d?.exercises.length || 0), 0)} ejercicios
+            </Text>
+          </View>
+        </View>
+
+        <Card style={[styles.todayCard, { backgroundColor: colors.surface }]}> 
+          <View style={styles.todayLeft}>
+            <View style={[styles.todayIcon, { backgroundColor: colors.primary + '15' }]}> 
+              <Ionicons name={todayWorkout ? getMuscleGroupIcon(todayWorkout.name) : 'sunny-outline'} size={22} color={colors.primary} />
+            </View>
+            <View style={styles.todayInfo}>
+              <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Hoy</Text>
+              <Text style={[styles.todayName, { color: colors.text }]} numberOfLines={1}>
+                {todayWorkout ? todayWorkout.name : 'Es tu día libre'}
+              </Text>
+              {todayWorkout && (
+                <Text style={[styles.todayMeta, { color: colors.textSecondary }]}>{todayWorkout.exercises.length} ejercicios · {todayWorkout.estimatedDuration || 60} min</Text>
+              )}
+              {isCompletedToday() && (
+                <View style={[styles.completedBadge, { backgroundColor: colors.success + '20' }]}>
+                  <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                  <Text style={[styles.completedText, { color: colors.success }]}>Completado hoy</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <Button
+            title={getButtonTitle()}
+            size="small"
+            disabled={isCompletedToday()}
+            onPress={() => {
+              if (todayWorkout && !isCompletedToday()) {
+                handleDayPress(today, todayWorkout);
+              } else if (!todayWorkout && !isCompletedToday()) {
+                Alert.alert(
+                  '¡Día libre!',
+                  'Disfruta el descanso, lo merecés! 💪'
+                );
+              }
+            }}
+          />
+        </Card>
+      </Card>
+    );
+  };
+
   
 
   if (loading) {
@@ -405,79 +511,7 @@ const WorkoutsScreen = () => {
         {/* Active Routine / Today */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Tu día</Text>
-          {activeRoutine ? (
-            <Card style={[styles.heroCard, { backgroundColor: colors.primary + '08' }]}> 
-              <View style={styles.heroHeader}>
-                <View style={styles.heroBadge}>
-                  <Ionicons name="flame" size={16} color={colors.primary} />
-                  <Text style={[styles.heroBadgeText, { color: colors.primary }]}>Rutina activa</Text>
-                </View>
-              </View>
-
-              <Text style={[styles.heroTitle, { color: colors.text }]}>{activeRoutine.name}</Text>
-              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
-                {activeRoutine.description || 'Entrena con constancia esta semana'}
-              </Text>
-
-              <View style={styles.heroRow}>
-                <View style={styles.heroStat}>
-                  <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
-                  <Text style={[styles.heroStatText, { color: colors.textSecondary }]}>7 días</Text>
-                </View>
-                <View style={styles.heroStat}>
-                  <Ionicons name="barbell-outline" size={18} color={colors.textSecondary} />
-                  <Text style={[styles.heroStatText, { color: colors.textSecondary }]}>
-                    {Object.values(activeRoutine.weeklyPlan).reduce((t, d) => t + (d?.exercises.length || 0), 0)} ejercicios
-                  </Text>
-                </View>
-              </View>
-
-              <Card style={[styles.todayCard, { backgroundColor: colors.surface }]}> 
-                <View style={styles.todayLeft}>
-                  <View style={[styles.todayIcon, { backgroundColor: colors.primary + '15' }]}> 
-                    <Ionicons name={todayWorkout ? getMuscleGroupIcon(todayWorkout.name) : 'sunny-outline'} size={22} color={colors.primary} />
-                  </View>
-                  <View style={styles.todayInfo}>
-                    <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Hoy</Text>
-                    <Text style={[styles.todayName, { color: colors.text }]} numberOfLines={1}>
-                      {todayWorkout ? todayWorkout.name : 'Es tu día libre'}
-                    </Text>
-                    {todayWorkout && (
-                      <Text style={[styles.todayMeta, { color: colors.textSecondary }]}>{todayWorkout.exercises.length} ejercicios · {todayWorkout.estimatedDuration || 60} min</Text>
-                    )}
-                    {isCompletedToday() && (
-                      <View style={[styles.completedBadge, { backgroundColor: colors.success + '20' }]}>
-                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                        <Text style={[styles.completedText, { color: colors.success }]}>Completado hoy</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <Button
-                  title={getButtonTitle()}
-                  size="small"
-                  disabled={isCompletedToday()}
-                  onPress={() => {
-                    if (todayWorkout && !isCompletedToday()) {
-                      handleDayPress(today, todayWorkout);
-                    } else if (!todayWorkout && !isCompletedToday()) {
-                      Alert.alert(
-                        '¡Día libre!',
-                        'Disfruta el descanso, lo merecés! 💪'
-                      );
-                    }
-                  }}
-                />
-              </Card>
-            </Card>
-          ) : (
-            <Card style={styles.emptyState}>
-              <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>Crea tu primera rutina</Text>
-              <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>Organiza tus entrenos semanales y sigue el plan del mock</Text>
-              <Button title="Crear rutina" onPress={() => { void handleCreateRoutinePress(); }} style={styles.createButton} />
-            </Card>
-          )}
+          {renderTodaySection()}
         </View>
 
         {/* Semana visual */}
